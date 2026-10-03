@@ -1,0 +1,74 @@
+name: iOS build & test
+
+on:
+  push:
+    branches: [main, ios-port]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-oracle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pytest
+        run: pip install -r requirements.txt
+      - name: Run Python oracle tests
+        run: pytest -q
+
+  ios:
+    runs-on: macos-latest
+    needs: python-oracle
+    env:
+      DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show tools
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          DEVICE=$(xcrun simctl list devices available --json \
+            | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; \
+                picks=[dev for runtime,devs in d.items() if 'iOS' in runtime for dev in devs if dev['isAvailable'] and dev['name'].startswith('iPhone')]; \
+                print(sorted(picks, key=lambda x: x['name'])[-1]['name'])")
+          echo "Using simulator: $DEVICE"
+          echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
+
+      - name: Build & test
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project RowTracker.xcodeproj \
+            -scheme RowTracker \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.device }}" \
+            -derivedDataPath build \
+            test | xcpretty || true
+          # xcpretty swallows exit codes; re-run quietly to surface failures
+          xcodebuild \
+            -project RowTracker.xcodeproj \
+            -scheme RowTracker \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.device }}" \
+            -derivedDataPath build \
+            test \
+            -quiet
