@@ -55,9 +55,9 @@ targets:
     platform: iOS
     sources:
       - path: RowTrackerTests
-    resources:
       - path: ../tests/vectors
         type: folder
+        buildPhase: resources
     dependencies:
       - target: RowTracker
     settings:
