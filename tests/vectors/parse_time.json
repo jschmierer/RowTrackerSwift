@@ -1,0 +1,54 @@
+[
+  {
+    "name": "mmss simple",
+    "input": "15:00",
+    "python_actual": 900.0,
+    "suspected_bug": false
+  },
+  {
+    "name": "mmss short minutes",
+    "input": "5:00",
+    "python_actual": 300.0,
+    "suspected_bug": false
+  },
+  {
+    "name": "mmss with sub-second",
+    "input": "2:00.5",
+    "python_actual": 120.5,
+    "suspected_bug": false
+  },
+  {
+    "name": "zero minutes",
+    "input": "0:30",
+    "python_actual": 30.0,
+    "suspected_bug": false,
+    "note": "Used by rest-interval workouts like 10x0:30."
+  },
+  {
+    "name": "mmss one-forty",
+    "input": "1:40",
+    "python_actual": 100.0,
+    "suspected_bug": false
+  },
+  {
+    "name": "hour long",
+    "input": "1:00:00",
+    "python_actual": 3600.0,
+    "suspected_bug": false
+  },
+  {
+    "name": "hour long with seconds",
+    "input": "1:30:45.5",
+    "python_actual": 5445.5,
+    "suspected_bug": false
+  },
+  {
+    "name": "no colon integer seconds",
+    "input": "90",
+    "python_raises": "ValueError",
+    "python_actual": null,
+    "expected": 90.0,
+    "suspected_bug": true,
+    "note": "Python crashes with ValueError on inputs without a colon. The author will decide whether '90' should mean 90 seconds."
+  }
+]

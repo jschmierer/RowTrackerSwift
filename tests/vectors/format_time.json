@@ -1,0 +1,88 @@
+[
+  {
+    "name": "900 int (fifteen minutes)",
+    "python_input_literal": "900",
+    "value": 900.0,
+    "python_actual": "15:00",
+    "expected": "15:00.0",
+    "suspected_bug": false,
+    "note": "When calcAverage drives formatting, totals are floats and show '.0'. The Swift port always emits one decimal for consistency, matching the float path."
+  },
+  {
+    "name": "900 float (fifteen minutes)",
+    "python_input_literal": "900.0",
+    "value": 900.0,
+    "python_actual": "15:00.0",
+    "suspected_bug": false
+  },
+  {
+    "name": "100 int",
+    "python_input_literal": "100",
+    "value": 100.0,
+    "python_actual": "01:40",
+    "expected": "01:40.0",
+    "suspected_bug": false,
+    "note": "Int path drops the decimal. Swift port always emits one decimal."
+  },
+  {
+    "name": "100 float",
+    "python_input_literal": "100.0",
+    "value": 100.0,
+    "python_actual": "01:40.0",
+    "suspected_bug": false
+  },
+  {
+    "name": "59.96 rollover",
+    "python_input_literal": "59.96",
+    "value": 59.96,
+    "python_actual": "00:60.0",
+    "expected": "01:00.0",
+    "suspected_bug": true,
+    "note": "Rounding seconds to 1 decimal yields 60.0 but Python does not roll over to the next minute."
+  },
+  {
+    "name": "59.95 rollover (banker's rounding)",
+    "python_input_literal": "59.95",
+    "value": 59.95,
+    "python_actual": "00:60.0",
+    "expected": "01:00.0",
+    "suspected_bug": true,
+    "note": "Same rollover bug as 59.96."
+  },
+  {
+    "name": "3600 int (one hour)",
+    "python_input_literal": "3600",
+    "value": 3600.0,
+    "python_actual": "1:00:00",
+    "expected": "1:00:00.0",
+    "suspected_bug": false,
+    "note": "Int path drops the decimal. Swift port always emits one decimal."
+  },
+  {
+    "name": "3600 float (one hour)",
+    "python_input_literal": "3600.0",
+    "value": 3600.0,
+    "python_actual": "1.0:00:00.0",
+    "expected": "1:00:00.0",
+    "suspected_bug": true,
+    "note": "Hours comes from `//` on a float, so Python emits '1.0:' instead of '1:'."
+  },
+  {
+    "name": "3661.5 float",
+    "python_input_literal": "3661.5",
+    "value": 3661.5,
+    "python_actual": "1.0:01:01.5",
+    "expected": "1:01:01.5",
+    "suspected_bug": true,
+    "note": "Same float-hours formatting bug."
+  },
+  {
+    "name": "zero seconds",
+    "python_input_literal": "0",
+    "value": 0.0,
+    "python_actual": "00:00",
+    "expected": "00:00.0",
+    "suspected_bug": false,
+    "note": "Int vs float difference again; Swift port always emits one decimal."
+  }
+]

@@ -1,0 +1,83 @@
+[
+  {
+    "name": "single interval",
+    "intervals": [
+      {"time": "15:00", "distance": 4500, "split": "1:40"}
+    ],
+    "python_actual": {
+      "total_time_sec": 900.0,
+      "total_distance": 4500,
+      "avg_split_sec": 100.0,
+      "total_time_str": "15:00.0",
+      "avg_split_str": "01:40.0"
+    },
+    "suspected_bug": false
+  },
+  {
+    "name": "two intervals unequal distances",
+    "intervals": [
+      {"time": "20:00", "distance": 5000, "split": "2:00"},
+      {"time": "10:00", "distance": 2000, "split": "2:30"}
+    ],
+    "python_actual": {
+      "total_time_sec": 1800.0,
+      "total_distance": 7000,
+      "avg_split_sec": 128.6,
+      "total_time_str": "30:00.0",
+      "avg_split_str": "02:08.6"
+    },
+    "suspected_bug": false,
+    "note": "Average split is computed on totals, not an average of splits — faster piece pulls the average down."
+  },
+  {
+    "name": "two intervals mixed splits",
+    "intervals": [
+      {"time": "5:00", "distance": 1500, "split": "1:40"},
+      {"time": "5:00", "distance": 1600, "split": "1:33.75"}
+    ],
+    "python_actual": {
+      "total_time_sec": 600.0,
+      "total_distance": 3100,
+      "avg_split_sec": 96.8,
+      "total_time_str": "10:00.0",
+      "avg_split_str": "01:36.8"
+    },
+    "suspected_bug": false
+  },
+  {
+    "name": "hour long single interval",
+    "intervals": [
+      {"time": "1:00:00", "distance": 15000, "split": "2:00"}
+    ],
+    "python_actual": {
+      "total_time_sec": 3600.0,
+      "total_distance": 15000,
+      "avg_split_sec": 120.0,
+      "total_time_str": "1.0:00:00.0",
+      "avg_split_str": "02:00.0"
+    },
+    "expected": {
+      "total_time_str": "1:00:00.0"
+    },
+    "suspected_bug": true,
+    "note": "Totals ≥ 1 hour print as '1.0:00:00.0' in Python because of the float-hours bug."
+  },
+  {
+    "name": "sub-minute rollover case",
+    "intervals": [
+      {"time": "0:59.96", "distance": 250, "split": "1:59.92"}
+    ],
+    "python_actual": {
+      "total_time_sec": 59.96,
+      "total_distance": 250,
+      "avg_split_sec": 119.9,
+      "total_time_str": "00:60.0",
+      "avg_split_str": "01:59.9"
+    },
+    "expected": {
+      "total_time_str": "01:00.0"
+    },
+    "suspected_bug": true,
+    "note": "Total time triggers the 59.96 rollover bug."
+  }
+]

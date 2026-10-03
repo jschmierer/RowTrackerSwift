@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# macOS
+.DS_Store
+
+# Xcode (generated)
+ios/RowTracker.xcodeproj/
+ios/build/
+ios/.build/
+ios/*.xcworkspace/
+ios/DerivedData/
+ios/Package.resolved
+
+# Swift Package Manager
+.swiftpm/
+Packages/
