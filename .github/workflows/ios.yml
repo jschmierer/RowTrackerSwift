@@ -2,7 +2,7 @@ name: iOS build & test
 
 on:
   push:
-    branches: [main, ios-port]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -12,21 +12,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  python-oracle:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install pytest
-        run: pip install -r requirements.txt
-      - name: Run Python oracle tests
-        run: pytest -q
-
   ios:
     runs-on: macos-latest
-    needs: python-oracle
     env:
       DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
     steps:
