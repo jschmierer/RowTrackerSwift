@@ -11,7 +11,8 @@ __pycache__/
 ios/RowTracker.xcodeproj/
 ios/build*/
 ios/.build/
-/build/              # xcodebuild archive output when invoked from the repo root
+# xcodebuild archive output when invoked from the repo root
+/build/
 ios/*.xcworkspace/
 ios/DerivedData/
 ios/Package.resolved
