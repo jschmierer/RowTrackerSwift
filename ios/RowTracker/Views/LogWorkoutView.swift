@@ -4,6 +4,7 @@ struct LogWorkoutView: View {
     @Environment(WorkoutStore.self) private var store
 
     @State private var kind: WorkoutKind = .timed
+    @State private var date: Date = Date()
     @State private var intervalCount: Int = 1
     @State private var rows: [IntervalFormRow] = [IntervalFormRow()]
     @State private var notes: String = ""
@@ -24,6 +25,13 @@ struct LogWorkoutView: View {
                          : "Row for a given distance (e.g. 2000 m), log how long it took.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+
+                Section("Date") {
+                    DatePicker("Workout date",
+                               selection: $date,
+                               in: ...Date(),
+                               displayedComponents: .date)
                 }
 
                 Section("Intervals") {
@@ -132,7 +140,7 @@ struct LogWorkoutView: View {
         }
 
         let workout = Workout(kind: kind,
-                              date: Date(),
+                              date: RowingDate.startOfLocalDay(for: date),
                               notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
                               intervals: intervals)
         do {
@@ -149,6 +157,7 @@ struct LogWorkoutView: View {
     }
 
     private func resetForm() {
+        date = Date()
         intervalCount = 1
         rows = [IntervalFormRow()]
         notes = ""
