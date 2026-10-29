@@ -39,7 +39,10 @@ struct DashboardView: View {
                             Text("Recent workouts")
                                 .font(.headline)
                             ForEach(recent) { w in
-                                WorkoutRow(workout: w)
+                                NavigationLink(value: w) {
+                                    WorkoutRow(workout: w)
+                                }
+                                .buttonStyle(.plain)
                                 Divider()
                             }
                         }
@@ -57,6 +60,9 @@ struct DashboardView: View {
                 .padding(16)
             }
             .navigationTitle("Dashboard")
+            .navigationDestination(for: Workout.self) { w in
+                WorkoutDetailView(workout: w)
+            }
         }
     }
 
