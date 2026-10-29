@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LogWorkoutView: View {
     @Environment(WorkoutStore.self) private var store
+    @Environment(AppRouter.self) private var router
 
     @State private var kind: WorkoutKind = .timed
     @State private var date: Date = Date()
@@ -9,7 +10,7 @@ struct LogWorkoutView: View {
     @State private var rows: [IntervalFormRow] = [IntervalFormRow()]
     @State private var notes: String = ""
     @State private var saveError: String?
-    @State private var showSavedBanner: Bool = false
+    @State private var justSaved: Workout?
 
     var body: some View {
         NavigationStack {
@@ -59,13 +60,6 @@ struct LogWorkoutView: View {
                             .foregroundStyle(.red)
                     }
                 }
-
-                if showSavedBanner {
-                    Section {
-                        Label("Workout saved", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                    }
-                }
             }
             .navigationTitle("Log Workout")
             .toolbar {
@@ -73,7 +67,25 @@ struct LogWorkoutView: View {
                     Button("Save", action: save).fontWeight(.semibold)
                 }
             }
+            .sheet(item: $justSaved) { saved in
+                NavigationStack {
+                    WorkoutDetailView(workout: saved)
+                        .navigationTitle("Saved")
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") { finishSave() }
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                }
+            }
         }
+    }
+
+    private func finishSave() {
+        justSaved = nil
+        resetForm()
+        router.selectedTab = .dashboard
     }
 
     @ViewBuilder
@@ -115,7 +127,6 @@ struct LogWorkoutView: View {
     }
 
     private func save() {
-        showSavedBanner = false
         saveError = nil
 
         var updated = rows
@@ -145,12 +156,10 @@ struct LogWorkoutView: View {
                               intervals: intervals)
         do {
             try store.save(workout)
-            resetForm()
-            showSavedBanner = true
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(2))
-                showSavedBanner = false
-            }
+            // Show the fresh workout so the rower can confirm it was recorded
+            // correctly. The form is cleared by `finishSave()` when they tap
+            // Done, which also switches to the Dashboard tab.
+            justSaved = workout
         } catch {
             saveError = "Couldn't save: \(error.localizedDescription)"
         }

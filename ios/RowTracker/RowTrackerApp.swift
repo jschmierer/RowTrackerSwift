@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct RowTrackerApp: App {
+    @State private var router = AppRouter()
     @State private var store: WorkoutStore = {
         do {
             let db = try AppDatabase.onDisk()
@@ -23,6 +24,7 @@ struct RowTrackerApp: App {
         WindowGroup {
             RootView()
                 .environment(store)
+                .environment(router)
         }
     }
 }
