@@ -91,4 +91,103 @@ struct IntervalFormRowTests {
             _ = try row.derive(kind: .distance)
         }
     }
+
+    // MARK: - Stroke rate
+
+    @Test("Blank stroke rate stays nil, not zero")
+    func strokeRateBlankIsNil() throws {
+        var row = IntervalFormRow()
+        row.primaryStr = "5:00"
+        row.secondary = .split
+        row.secondaryStr = "1:40"
+        row.strokeRateStr = ""
+        let interval = try row.derive(kind: .timed)
+        #expect(interval.strokeRate == nil)
+    }
+
+    @Test("Whitespace-only stroke rate stays nil")
+    func strokeRateWhitespaceIsNil() throws {
+        var row = IntervalFormRow()
+        row.primaryStr = "5:00"
+        row.secondary = .split
+        row.secondaryStr = "1:40"
+        row.strokeRateStr = "   "
+        let interval = try row.derive(kind: .timed)
+        #expect(interval.strokeRate == nil)
+    }
+
+    @Test("Valid stroke rate parses as Int")
+    func strokeRateValid() throws {
+        var row = IntervalFormRow()
+        row.primaryStr = "5:00"
+        row.secondary = .split
+        row.secondaryStr = "1:40"
+        row.strokeRateStr = "28"
+        let interval = try row.derive(kind: .timed)
+        #expect(interval.strokeRate == 28)
+    }
+
+    @Test("Boundary stroke rates (10 and 60) are accepted")
+    func strokeRateBoundaries() throws {
+        for value in [10, 60] {
+            var row = IntervalFormRow()
+            row.primaryStr = "5:00"
+            row.secondary = .split
+            row.secondaryStr = "1:40"
+            row.strokeRateStr = "\(value)"
+            let interval = try row.derive(kind: .timed)
+            #expect(interval.strokeRate == value)
+        }
+    }
+
+    @Test("Below range rejected")
+    func strokeRateTooLow() {
+        var row = IntervalFormRow()
+        row.primaryStr = "5:00"
+        row.secondary = .split
+        row.secondaryStr = "1:40"
+        row.strokeRateStr = "9"
+        #expect(throws: IntervalFormRow.DeriveError.self) {
+            _ = try row.derive(kind: .timed)
+        }
+    }
+
+    @Test("Above range rejected")
+    func strokeRateTooHigh() {
+        var row = IntervalFormRow()
+        row.primaryStr = "5:00"
+        row.secondary = .split
+        row.secondaryStr = "1:40"
+        row.strokeRateStr = "61"
+        #expect(throws: IntervalFormRow.DeriveError.self) {
+            _ = try row.derive(kind: .timed)
+        }
+    }
+
+    @Test("Non-integer stroke rate rejected")
+    func strokeRateNotInt() {
+        var row = IntervalFormRow()
+        row.primaryStr = "5:00"
+        row.secondary = .split
+        row.secondaryStr = "1:40"
+        row.strokeRateStr = "28.5"
+        #expect(throws: IntervalFormRow.DeriveError.self) {
+            _ = try row.derive(kind: .timed)
+        }
+    }
+
+    @Test("Stroke-rate error message mentions range 10 to 60")
+    func strokeRateErrorMessage() {
+        var row = IntervalFormRow()
+        row.strokeRateStr = "100"
+        do {
+            _ = try row.parseStrokeRate()
+            Issue.record("expected throw")
+        } catch let e as IntervalFormRow.DeriveError {
+            let msg = e.errorDescription ?? ""
+            #expect(msg.contains("10") && msg.contains("60"))
+        } catch {
+            Issue.record("unexpected error: \(error)")
+        }
+    }
 }

@@ -16,6 +16,7 @@ struct LogWorkoutView: View {
     enum FocusedField: Hashable {
         case primary(Int)
         case secondary(Int)
+        case strokeRate(Int)
         case notes
     }
 
@@ -131,6 +132,11 @@ struct LogWorkoutView: View {
                 .autocorrectionDisabled()
                 .focused($focusedField, equals: .secondary(index))
 
+            TextField("Stroke rate (optional, 10–60 spm)",
+                      text: $rows[index].strokeRateStr)
+                .keyboardType(.numberPad)
+                .focused($focusedField, equals: .strokeRate(index))
+
             if let err = rows[index].error {
                 Text(err)
                     .font(.caption)
@@ -204,7 +210,12 @@ struct IntervalFormRow: Identifiable {
     var primaryStr: String = ""
     var secondary: SecondaryField = .split
     var secondaryStr: String = ""
+    /// Stroke rate (spm). Optional on the form — blank saves as nil.
+    var strokeRateStr: String = ""
     var error: String?
+
+    /// Accepted stroke-rate range (strokes per minute).
+    static let strokeRateRange = 10...60
 
     enum DeriveError: LocalizedError {
         case missing(String)
@@ -228,6 +239,8 @@ struct IntervalFormRow: Identifiable {
             throw DeriveError.missing(secondary.fieldName)
         }
 
+        let strokeRate = try parseStrokeRate()
+
         switch (kind, secondary) {
         case (.timed, .split):
             let time = try RowingMath.parseTime(primary)
@@ -235,7 +248,7 @@ struct IntervalFormRow: Identifiable {
             guard time > 0 else { throw DeriveError.message("Time must be greater than zero.") }
             guard split > 0 else { throw DeriveError.message("Split must be greater than zero.") }
             let distance = RowingMath.distance(fromTime: time, split: split).rounded()
-            return Interval(durationSec: time, distanceMeters: distance)
+            return Interval(durationSec: time, distanceMeters: distance, strokeRate: strokeRate)
 
         case (.timed, .otherQuantity):
             // Timed + distance
@@ -244,7 +257,7 @@ struct IntervalFormRow: Identifiable {
                 throw DeriveError.message("Distance must be a positive number of meters.")
             }
             guard time > 0 else { throw DeriveError.message("Time must be greater than zero.") }
-            return Interval(durationSec: time, distanceMeters: distance)
+            return Interval(durationSec: time, distanceMeters: distance, strokeRate: strokeRate)
 
         case (.distance, .split):
             guard let distance = Double(primary), distance > 0 else {
@@ -253,7 +266,7 @@ struct IntervalFormRow: Identifiable {
             let split = try RowingMath.parseTime(secondaryText)
             guard split > 0 else { throw DeriveError.message("Split must be greater than zero.") }
             let time = RowingMath.time(fromDistance: distance, split: split)
-            return Interval(durationSec: time, distanceMeters: distance)
+            return Interval(durationSec: time, distanceMeters: distance, strokeRate: strokeRate)
 
         case (.distance, .otherQuantity):
             // Distance + time
@@ -262,8 +275,20 @@ struct IntervalFormRow: Identifiable {
             }
             let time = try RowingMath.parseTime(secondaryText)
             guard time > 0 else { throw DeriveError.message("Time must be greater than zero.") }
-            return Interval(durationSec: time, distanceMeters: distance)
+            return Interval(durationSec: time, distanceMeters: distance, strokeRate: strokeRate)
         }
+    }
+
+    /// Returns nil for a blank field (so the stored column stays NULL), the
+    /// parsed value for an in-range integer, and throws a friendly message
+    /// otherwise.
+    func parseStrokeRate() throws -> Int? {
+        let trimmed = strokeRateStr.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        guard let value = Int(trimmed), Self.strokeRateRange.contains(value) else {
+            throw DeriveError.message("Stroke rate must be a whole number from 10 to 60.")
+        }
+        return value
     }
 }
 
