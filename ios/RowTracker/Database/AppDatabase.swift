@@ -61,6 +61,9 @@ struct AppDatabase {
             try db.execute(sql: "CREATE INDEX idx_intervals_workout ON intervals(workout_id)")
             try db.execute(sql: "CREATE INDEX idx_workouts_date ON workouts(date DESC)")
         }
+        m.registerMigration("v2_add_stroke_rate") { db in
+            try db.execute(sql: "ALTER TABLE intervals ADD COLUMN stroke_rate INTEGER")
+        }
         return m
     }
 }

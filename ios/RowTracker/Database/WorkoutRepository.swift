@@ -36,8 +36,8 @@ struct WorkoutRepository {
                 try d.execute(
                     sql: """
                     INSERT INTO intervals
-                        (id, workout_id, position, duration_sec, distance_meters)
-                    VALUES (?, ?, ?, ?, ?)
+                        (id, workout_id, position, duration_sec, distance_meters, stroke_rate)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     arguments: StatementArguments([
                         interval.id.uuidString,
@@ -45,6 +45,7 @@ struct WorkoutRepository {
                         position,
                         interval.durationSec,
                         interval.distanceMeters,
+                        interval.strokeRate,
                     ] as [(any DatabaseValueConvertible)?])
                 )
             }
@@ -109,7 +110,7 @@ struct WorkoutRepository {
         // One query for all intervals, then bucket by workout_id — cheaper than
         // N+1 trips for larger libraries.
         let intervalRows = try Row.fetchAll(d, sql: """
-            SELECT id, workout_id, position, duration_sec, distance_meters
+            SELECT id, workout_id, position, duration_sec, distance_meters, stroke_rate
             FROM intervals
             ORDER BY workout_id, position
         """)
@@ -135,7 +136,7 @@ struct WorkoutRepository {
         try Row.fetchAll(
             d,
             sql: """
-                SELECT id, position, duration_sec, distance_meters
+                SELECT id, position, duration_sec, distance_meters, stroke_rate
                 FROM intervals
                 WHERE workout_id = ?
                 ORDER BY position
@@ -147,7 +148,11 @@ struct WorkoutRepository {
     private static func interval(from row: Row) -> Interval {
         let id = UUID(uuidString: row["id"]) ?? UUID()
         let distance: Double? = row["distance_meters"]
-        return Interval(id: id, durationSec: row["duration_sec"], distanceMeters: distance)
+        let strokeRate: Int? = row["stroke_rate"]
+        return Interval(id: id,
+                        durationSec: row["duration_sec"],
+                        distanceMeters: distance,
+                        strokeRate: strokeRate)
     }
 
     private static func workout(from header: Header, intervals: [Interval]) -> Workout {

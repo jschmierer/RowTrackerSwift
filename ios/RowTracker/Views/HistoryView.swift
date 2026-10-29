@@ -16,9 +16,14 @@ struct HistoryView: View {
                 } else {
                     List {
                         ForEach(store.workouts) { w in
-                            WorkoutRow(workout: w)
+                            NavigationLink(value: w) {
+                                WorkoutRow(workout: w)
+                            }
                         }
                         .onDelete(perform: delete)
+                    }
+                    .navigationDestination(for: Workout.self) { w in
+                        WorkoutDetailView(workout: w)
                     }
                 }
             }

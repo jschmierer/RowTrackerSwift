@@ -14,11 +14,18 @@ struct Interval: Identifiable, Codable, Hashable {
     var durationSec: TimeInterval
     /// Distance in meters. Optional: rest intervals like "10x0:30" have no distance.
     var distanceMeters: Double?
+    /// Stroke rate in strokes per minute. Optional — not every workout
+    /// records it; the Log form doesn't capture it yet.
+    var strokeRate: Int?
 
-    init(id: UUID = UUID(), durationSec: TimeInterval, distanceMeters: Double? = nil) {
+    init(id: UUID = UUID(),
+         durationSec: TimeInterval,
+         distanceMeters: Double? = nil,
+         strokeRate: Int? = nil) {
         self.id = id
         self.durationSec = durationSec
         self.distanceMeters = distanceMeters
+        self.strokeRate = strokeRate
     }
 
     /// Split per 500 m, computed. Nil when distance is missing or non-positive.

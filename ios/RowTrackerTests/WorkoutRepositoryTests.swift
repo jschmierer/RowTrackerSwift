@@ -106,4 +106,18 @@ struct WorkoutRepositoryTests {
         #expect(fetched.intervals.count == 1)
         #expect(fetched.intervals[0].durationSec == 300)
     }
+
+    @Test("strokeRate round-trips, including nil")
+    func strokeRateRoundTrip() throws {
+        let db = try AppDatabase.inMemory()
+        let repo = WorkoutRepository(db)
+        let w = Workout(kind: .timed, intervals: [
+            Interval(durationSec: 300, distanceMeters: 1500, strokeRate: 28),
+            Interval(durationSec: 300, distanceMeters: 1500, strokeRate: nil),
+            Interval(durationSec: 300, distanceMeters: 1500, strokeRate: 32),
+        ])
+        try repo.save(w)
+        let fetched = try #require(try repo.fetchOne(id: w.id))
+        #expect(fetched.intervals.map(\.strokeRate) == [28, nil, 32])
+    }
 }
