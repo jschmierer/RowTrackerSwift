@@ -11,6 +11,13 @@ struct LogWorkoutView: View {
     @State private var notes: String = ""
     @State private var saveError: String?
     @State private var justSaved: Workout?
+    @FocusState private var focusedField: FocusedField?
+
+    enum FocusedField: Hashable {
+        case primary(Int)
+        case secondary(Int)
+        case notes
+    }
 
     var body: some View {
         NavigationStack {
@@ -51,6 +58,7 @@ struct LogWorkoutView: View {
                 Section("Notes (optional)") {
                     TextField("How did it feel? Rate, rig, drag...", text: $notes, axis: .vertical)
                         .lineLimit(1...3)
+                        .focused($focusedField, equals: .notes)
                 }
 
                 if let saveError {
@@ -62,9 +70,20 @@ struct LogWorkoutView: View {
                 }
             }
             .navigationTitle("Log Workout")
+            .scrollDismissesKeyboard(.interactively)
+            .onTapGesture {
+                // Taps on empty Form space don't normally end editing with a
+                // number-pad focused; nudge first responder down to the window.
+                focusedField = nil
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", action: save).fontWeight(.semibold)
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { focusedField = nil }
+                        .fontWeight(.semibold)
                 }
             }
             .sheet(item: $justSaved) { saved in
@@ -96,6 +115,7 @@ struct LogWorkoutView: View {
                 .keyboardType(kind.primaryKeyboard)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .focused($focusedField, equals: .primary(index))
 
             // Secondary picker + value.
             Picker("Also enter", selection: $rows[index].secondary) {
@@ -109,6 +129,7 @@ struct LogWorkoutView: View {
                 .keyboardType(rows[index].secondary.keyboard(for: kind))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .focused($focusedField, equals: .secondary(index))
 
             if let err = rows[index].error {
                 Text(err)
