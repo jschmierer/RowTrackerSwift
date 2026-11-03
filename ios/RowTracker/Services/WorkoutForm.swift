@@ -28,11 +28,16 @@ struct WorkoutForm {
     var avgHRStr: String = ""
     var maxHRStr: String = ""
     var heartRateError: String?
+    /// Perceived effort, 0 (easy) to 10 (all-out).
+    var effort: Int = 5 {
+        didSet { effort = min(max(effort, Self.effortRange.lowerBound), Self.effortRange.upperBound) }
+    }
     var notes: String = ""
 
     static let maxIntervals = 20
     /// Accepted heart-rate range (beats per minute).
     static let heartRateRange = 30...230
+    static let effortRange = 0...10
 
     /// The three ways the interval entry can be laid out.
     enum Layout: Equatable {
@@ -234,7 +239,8 @@ struct WorkoutForm {
                        notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
                        intervals: intervals,
                        avgHR: avgHR,
-                       maxHR: maxHR)
+                       maxHR: maxHR,
+                       effort: effort)
     }
 
     /// Each field is optional (blank saves as nil, like stroke rate). A

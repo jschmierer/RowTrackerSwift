@@ -568,3 +568,27 @@ struct HeartRateValidationTests {
         #expect(form.heartRateError?.contains("Max HR") == true)
     }
 }
+
+@Suite("Effort level")
+struct EffortTests {
+    @Test("Defaults to 5 and is saved on the workout")
+    func defaultSaved() throws {
+        var form = WorkoutForm()
+        #expect(form.effort == 5)
+        form.rows[0].primaryStr = "10:00"
+        form.rows[0].secondaryStr = "2:00"
+        form.effort = 8
+        let made = form.makeWorkout()
+        let w = try #require(made)
+        #expect(w.effort == 8)
+    }
+
+    @Test("Clamped to 0...10")
+    func clamped() {
+        var form = WorkoutForm()
+        form.effort = 14
+        #expect(form.effort == 10)
+        form.effort = -2
+        #expect(form.effort == 0)
+    }
+}

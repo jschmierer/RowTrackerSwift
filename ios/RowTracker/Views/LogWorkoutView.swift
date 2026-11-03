@@ -131,6 +131,31 @@ struct LogWorkoutView: View {
                     }
                 }
 
+                Section("Effort") {
+                    HStack {
+                        Text("Effort level")
+                        Spacer()
+                        Text("\(form.effort) / 10")
+                            .monospacedDigit()
+                            .fontWeight(.semibold)
+                    }
+                    Slider(
+                        value: Binding(
+                            get: { Double(form.effort) },
+                            set: { form.effort = Int($0.rounded()) }
+                        ),
+                        in: 0...10,
+                        step: 1
+                    ) {
+                        Text("Effort level")
+                    } minimumValueLabel: {
+                        Text("0")
+                    } maximumValueLabel: {
+                        Text("10")
+                    }
+                    .accessibilityValue("\(form.effort) out of 10")
+                }
+
                 Section("Notes (optional)") {
                     TextField("How did it feel? Rate, rig, drag...",
                               text: $form.notes, axis: .vertical)
