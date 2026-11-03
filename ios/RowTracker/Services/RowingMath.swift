@@ -105,6 +105,30 @@ enum RowingMath {
         time / distance * splitDistance
     }
 
+    // MARK: - Watts (Concept2 erg formula)
+    //
+    //   watts         = 2.80 / (split_seconds / 500)^3
+    //   split_seconds = 500 * (2.80 / watts)^(1/3)
+    //
+    // Watts are never stored: like split, they are derived from an
+    // interval's distance and duration.
+
+    /// Constant in the Concept2 power formula.
+    static let wattsConstant: Double = 2.80
+
+    /// Power in watts for a split per 500 m. Nil for a non-positive split.
+    static func watts(fromSplit split: TimeInterval) -> Double? {
+        guard split > 0 else { return nil }
+        let pace = split / splitDistance          // seconds per meter
+        return wattsConstant / (pace * pace * pace)
+    }
+
+    /// Split per 500 m for a power in watts. Nil for non-positive watts.
+    static func split(fromWatts watts: Double) -> TimeInterval? {
+        guard watts > 0, watts.isFinite else { return nil }
+        return splitDistance * pow(wattsConstant / watts, 1.0 / 3.0)
+    }
+
     /// Average split across one or more intervals, computed on totals.
     /// Returns nil for empty input or zero distance.
     static func averageSplit(totalTime: TimeInterval, totalDistance: Double) -> TimeInterval? {

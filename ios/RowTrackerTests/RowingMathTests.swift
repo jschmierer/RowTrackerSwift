@@ -134,3 +134,49 @@ struct AverageSplitTests {
         }
     }
 }
+
+// MARK: - Watts
+
+@Suite("RowingMath watts")
+struct WattsTests {
+    @Test("2:00.0 split is about 202.5 W")
+    func twoMinuteSplit() throws {
+        let w = try #require(RowingMath.watts(fromSplit: 120))
+        #expect(abs(w - 202.5) < 0.1, "got \(w)")
+    }
+
+    @Test("1:45.0 split is about 302.3 W")
+    func fasterSplit() throws {
+        let w = try #require(RowingMath.watts(fromSplit: 105))
+        #expect(abs(w - 302.3) < 0.1, "got \(w)")
+    }
+
+    @Test("202.5 W is about a 2:00.0 split")
+    func wattsToSplit() throws {
+        let s = try #require(RowingMath.split(fromWatts: 202.5))
+        #expect(abs(s - 120) < 0.05, "got \(s)")
+    }
+
+    @Test("watts -> split -> watts returns the original value",
+          arguments: [50.0, 100, 150, 202.5, 250, 333, 500, 750])
+    func roundTrip(_ watts: Double) throws {
+        let split = try #require(RowingMath.split(fromWatts: watts))
+        // Splits are shown and entered to a tenth of a second.
+        let shown = (split * 10).rounded() / 10
+        let back = try #require(RowingMath.watts(fromSplit: shown))
+        // A 0.05 s rounding of the split moves watts by under 0.5%.
+        #expect(abs(back - watts) / watts < 0.005,
+                "\(watts) W -> \(shown) s -> \(back) W")
+        // And exactly, without display rounding.
+        let exact = try #require(RowingMath.watts(fromSplit: split))
+        #expect(abs(exact - watts) < 1e-9)
+    }
+
+    @Test("zero and negative inputs give nil")
+    func nonPositive() {
+        #expect(RowingMath.watts(fromSplit: 0) == nil)
+        #expect(RowingMath.watts(fromSplit: -5) == nil)
+        #expect(RowingMath.split(fromWatts: 0) == nil)
+        #expect(RowingMath.split(fromWatts: -100) == nil)
+    }
+}
