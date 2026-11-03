@@ -4,11 +4,7 @@ struct LogWorkoutView: View {
     @Environment(WorkoutStore.self) private var store
     @Environment(AppRouter.self) private var router
 
-    @State private var kind: WorkoutKind = .timed
-    @State private var date: Date = Date()
-    @State private var intervalCount: Int = 1
-    @State private var rows: [IntervalFormRow] = [IntervalFormRow()]
-    @State private var notes: String = ""
+    @State private var form = WorkoutForm()
     @State private var saveError: String?
     @State private var justSaved: Workout?
     @FocusState private var focusedField: FocusedField?
@@ -20,18 +16,20 @@ struct LogWorkoutView: View {
         case notes
     }
 
+    private var kind: WorkoutKind { form.kind }
+
     var body: some View {
         NavigationStack {
             Form {
                 Section("Date") {
                     DatePicker("Workout date",
-                               selection: $date,
+                               selection: $form.date,
                                in: ...Date(),
                                displayedComponents: .date)
                 }
 
                 Section("Workout type") {
-                    Picker("Type", selection: $kind) {
+                    Picker("Type", selection: $form.kind) {
                         Text("Timed").tag(WorkoutKind.timed)
                         Text("Distance").tag(WorkoutKind.distance)
                     }
@@ -43,21 +41,28 @@ struct LogWorkoutView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Intervals") {
-                    Stepper(value: $intervalCount, in: 1...20) {
-                        Text("\(intervalCount) interval\(intervalCount == 1 ? "" : "s")")
-                    }
-                    .onChange(of: intervalCount) { _, newCount in
-                        syncRowCount(to: newCount)
+                Section {
+                    Toggle("Intervals", isOn: Binding(
+                        get: { form.intervalsOn },
+                        set: { form.setIntervalsOn($0) }
+                    ))
+                    if form.intervalsOn {
+                        Stepper(value: Binding(
+                            get: { form.rows.count },
+                            set: { form.setIntervalCount($0) }
+                        ), in: 2...WorkoutForm.maxIntervals) {
+                            Text("\(form.rows.count) intervals")
+                        }
                     }
                 }
 
-                ForEach(rows.indices, id: \.self) { idx in
+                ForEach(form.activeRowIndices, id: \.self) { idx in
                     intervalSection(index: idx)
                 }
 
                 Section("Notes (optional)") {
-                    TextField("How did it feel? Rate, rig, drag...", text: $notes, axis: .vertical)
+                    TextField("How did it feel? Rate, rig, drag...",
+                              text: $form.notes, axis: .vertical)
                         .lineLimit(1...3)
                         .focused($focusedField, equals: .notes)
                 }
@@ -104,40 +109,40 @@ struct LogWorkoutView: View {
 
     private func finishSave() {
         justSaved = nil
-        resetForm()
+        form = WorkoutForm()
         router.selectedTab = .dashboard
     }
 
     @ViewBuilder
     private func intervalSection(index: Int) -> some View {
-        Section("Interval \(index + 1)") {
+        Section(form.intervalsOn ? "Interval \(index + 1)" : "Workout") {
             // Primary field — depends on workout type.
-            TextField(kind.primaryFieldLabel, text: $rows[index].primaryStr)
+            TextField(kind.primaryFieldLabel, text: $form.rows[index].primaryStr)
                 .keyboardType(kind.primaryKeyboard)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($focusedField, equals: .primary(index))
 
             // Secondary picker + value.
-            Picker("Also enter", selection: $rows[index].secondary) {
+            Picker("Also enter", selection: $form.rows[index].secondary) {
                 ForEach(kind.secondaryOptions, id: \.self) { opt in
                     Text(opt.label(for: kind)).tag(opt)
                 }
             }
             .pickerStyle(.segmented)
-            TextField(rows[index].secondary.fieldLabel(for: kind),
-                      text: $rows[index].secondaryStr)
-                .keyboardType(rows[index].secondary.keyboard(for: kind))
+            TextField(form.rows[index].secondary.fieldLabel(for: kind),
+                      text: $form.rows[index].secondaryStr)
+                .keyboardType(form.rows[index].secondary.keyboard(for: kind))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($focusedField, equals: .secondary(index))
 
             TextField("Stroke rate (optional, 10–60 spm)",
-                      text: $rows[index].strokeRateStr)
+                      text: $form.rows[index].strokeRateStr)
                 .keyboardType(.numberPad)
                 .focused($focusedField, equals: .strokeRate(index))
 
-            if let err = rows[index].error {
+            if let err = form.rows[index].error {
                 Text(err)
                     .font(.caption)
                     .foregroundStyle(.red)
@@ -145,42 +150,12 @@ struct LogWorkoutView: View {
         }
     }
 
-    private func syncRowCount(to n: Int) {
-        if n > rows.count {
-            rows.append(contentsOf: (0..<(n - rows.count)).map { _ in IntervalFormRow() })
-        } else if n < rows.count {
-            rows = Array(rows.prefix(n))
-        }
-    }
-
     private func save() {
         saveError = nil
-
-        var updated = rows
-        var intervals: [Interval] = []
-        var hadError = false
-
-        for i in updated.indices {
-            do {
-                intervals.append(try updated[i].derive(kind: kind))
-                updated[i].error = nil
-            } catch {
-                updated[i].error = (error as? LocalizedError)?.errorDescription
-                    ?? error.localizedDescription
-                hadError = true
-            }
-        }
-        rows = updated
-
-        guard !hadError else {
-            saveError = "Fix the highlighted intervals and try again."
+        guard let workout = form.makeWorkout() else {
+            saveError = "Fix the highlighted fields and try again."
             return
         }
-
-        let workout = Workout(kind: kind,
-                              date: RowingDate.startOfLocalDay(for: date),
-                              notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
-                              intervals: intervals)
         do {
             try store.save(workout)
             // Show the fresh workout so the rower can confirm it was recorded
@@ -191,124 +166,11 @@ struct LogWorkoutView: View {
             saveError = "Couldn't save: \(error.localizedDescription)"
         }
     }
-
-    private func resetForm() {
-        date = Date()
-        intervalCount = 1
-        rows = [IntervalFormRow()]
-        notes = ""
-    }
-}
-
-// MARK: - Form row
-
-/// One interval's inputs: the primary value (time for a Timed workout,
-/// distance for a Distance workout) plus one secondary (split or the other
-/// quantity). The third value is derived in `derive(kind:)`.
-struct IntervalFormRow: Identifiable {
-    let id = UUID()
-    var primaryStr: String = ""
-    var secondary: SecondaryField = .split
-    var secondaryStr: String = ""
-    /// Stroke rate (spm). Optional on the form — blank saves as nil.
-    var strokeRateStr: String = ""
-    var error: String?
-
-    /// Accepted stroke-rate range (strokes per minute).
-    static let strokeRateRange = 10...60
-
-    enum DeriveError: LocalizedError {
-        case missing(String)
-        case message(String)
-
-        var errorDescription: String? {
-            switch self {
-            case .missing(let field): return "Enter a value for \(field)."
-            case .message(let m): return m
-            }
-        }
-    }
-
-    func derive(kind: WorkoutKind) throws -> Interval {
-        let primary = primaryStr.trimmingCharacters(in: .whitespaces)
-        let secondaryText = secondaryStr.trimmingCharacters(in: .whitespaces)
-        guard !primary.isEmpty else {
-            throw DeriveError.missing(kind.primaryFieldName)
-        }
-        guard !secondaryText.isEmpty else {
-            throw DeriveError.missing(secondary.fieldName)
-        }
-
-        let strokeRate = try parseStrokeRate()
-
-        switch (kind, secondary) {
-        case (.timed, .split):
-            let time = try RowingMath.parseTime(primary)
-            let split = try RowingMath.parseTime(secondaryText)
-            guard time > 0 else { throw DeriveError.message("Time must be greater than zero.") }
-            guard split > 0 else { throw DeriveError.message("Split must be greater than zero.") }
-            let distance = RowingMath.distance(fromTime: time, split: split).rounded()
-            return Interval(durationSec: time, distanceMeters: distance, strokeRate: strokeRate)
-
-        case (.timed, .otherQuantity):
-            // Timed + distance
-            let time = try RowingMath.parseTime(primary)
-            guard let distance = Double(secondaryText), distance > 0 else {
-                throw DeriveError.message("Distance must be a positive number of meters.")
-            }
-            guard time > 0 else { throw DeriveError.message("Time must be greater than zero.") }
-            return Interval(durationSec: time, distanceMeters: distance, strokeRate: strokeRate)
-
-        case (.distance, .split):
-            guard let distance = Double(primary), distance > 0 else {
-                throw DeriveError.message("Distance must be a positive number of meters.")
-            }
-            let split = try RowingMath.parseTime(secondaryText)
-            guard split > 0 else { throw DeriveError.message("Split must be greater than zero.") }
-            let time = RowingMath.time(fromDistance: distance, split: split)
-            return Interval(durationSec: time, distanceMeters: distance, strokeRate: strokeRate)
-
-        case (.distance, .otherQuantity):
-            // Distance + time
-            guard let distance = Double(primary), distance > 0 else {
-                throw DeriveError.message("Distance must be a positive number of meters.")
-            }
-            let time = try RowingMath.parseTime(secondaryText)
-            guard time > 0 else { throw DeriveError.message("Time must be greater than zero.") }
-            return Interval(durationSec: time, distanceMeters: distance, strokeRate: strokeRate)
-        }
-    }
-
-    /// Returns nil for a blank field (so the stored column stays NULL), the
-    /// parsed value for an in-range integer, and throws a friendly message
-    /// otherwise.
-    func parseStrokeRate() throws -> Int? {
-        let trimmed = strokeRateStr.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return nil }
-        guard let value = Int(trimmed), Self.strokeRateRange.contains(value) else {
-            throw DeriveError.message("Stroke rate must be a whole number from 10 to 60.")
-        }
-        return value
-    }
-}
-
-/// Which secondary value the rower is entering. The third value is computed
-/// from the primary (set by the workout type) and this one.
-enum SecondaryField: Hashable {
-    case split
-    case otherQuantity   // "distance" for a Timed workout, "time" for a Distance workout
 }
 
 // MARK: - WorkoutKind UI helpers
 
 private extension WorkoutKind {
-    var primaryFieldName: String {
-        switch self {
-        case .timed: return "time"
-        case .distance: return "distance"
-        }
-    }
-
     var primaryFieldLabel: String {
         switch self {
         case .timed: return "Time (M:SS or H:MM:SS)"
@@ -335,14 +197,6 @@ private extension SecondaryField {
         case (.split, _): return "Split"
         case (.otherQuantity, .timed): return "Distance"
         case (.otherQuantity, .distance): return "Time"
-        }
-    }
-
-    /// Prose label used in error messages ("Enter a value for <this>").
-    var fieldName: String {
-        switch self {
-        case .split: return "split"
-        case .otherQuantity: return "the other value"
         }
     }
 

@@ -191,3 +191,44 @@ struct IntervalFormRowTests {
         }
     }
 }
+
+@Suite("WorkoutForm intervals toggle")
+struct WorkoutFormIntervalsToggleTests {
+    private func filled(_ primary: String, _ split: String) -> IntervalFormRow {
+        var r = IntervalFormRow()
+        r.primaryStr = primary
+        r.secondary = .split
+        r.secondaryStr = split
+        return r
+    }
+
+    @Test("Intervals default off with one row")
+    func defaults() {
+        let form = WorkoutForm()
+        #expect(form.intervalsOn == false)
+        #expect(form.activeRowIndices == 0..<1)
+    }
+
+    @Test("Turning intervals on adds a second interval")
+    func turnOn() {
+        var form = WorkoutForm()
+        form.setIntervalsOn(true)
+        #expect(form.rows.count == 2)
+        #expect(form.activeRowIndices == 0..<2)
+    }
+
+    @Test("Turning intervals off saves only the first row and keeps the rest")
+    func offSavesFirstOnly() throws {
+        var form = WorkoutForm()
+        form.setIntervalsOn(true)
+        form.rows = [filled("5:00", "1:40"), IntervalFormRow()]   // 2nd blank
+        form.setIntervalsOn(false)
+        let made = form.makeWorkout()
+        let w = try #require(made)
+        #expect(w.intervals.count == 1)
+        #expect(form.rows.count == 2, "hidden rows are kept")
+        form.setIntervalsOn(true)
+        let again = form.makeWorkout()
+        #expect(again == nil, "blank 2nd interval now counts")
+    }
+}
