@@ -49,11 +49,13 @@ struct LogWorkoutView: View {
                         get: { form.intervalsOn },
                         set: { form.setIntervalsOn($0) }
                     ))
+                    .accessibilityIdentifier("intervalsToggle")
                     if form.intervalsOn {
                         Toggle("Variable", isOn: Binding(
                             get: { form.variable },
                             set: { form.setVariable($0) }
                         ))
+                        .accessibilityIdentifier("variableToggle")
                     }
                 }
 
@@ -107,6 +109,7 @@ struct LogWorkoutView: View {
                             Label("Add interval", systemImage: "plus.circle.fill")
                         }
                         .disabled(!form.canAddInterval)
+                        .accessibilityIdentifier("addIntervalButton")
                     }
                 }
 
@@ -174,12 +177,11 @@ struct LogWorkoutView: View {
                 }
             }
             .navigationTitle("Log Workout")
+            // Keyboard dismissal: swipe the form down, or the Done button
+            // above the keyboard. Don't add .onTapGesture to the Form for
+            // this: it takes taps away from Form-row buttons, which is
+            // what broke "+ Add interval" in build 4.
             .scrollDismissesKeyboard(.interactively)
-            .onTapGesture {
-                // Taps on empty Form space don't normally end editing with a
-                // number-pad focused; nudge first responder down to the window.
-                focusedField = nil
-            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", action: save).fontWeight(.semibold)
@@ -237,6 +239,7 @@ struct LogWorkoutView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .focused($focusedField, equals: .primary(id))
+                    .accessibilityIdentifier("primaryField.\(index + 1)")
             }
 
             TextField(form.secondary.fieldLabel(for: kind), text: row.secondaryStr)
@@ -244,6 +247,7 @@ struct LogWorkoutView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($focusedField, equals: .secondary(id))
+                .accessibilityIdentifier("secondaryField.\(index + 1)")
 
             TextField("Stroke rate (optional, 10–60 spm)", text: row.strokeRateStr)
                 .keyboardType(.numberPad)
@@ -258,6 +262,7 @@ struct LogWorkoutView: View {
             if form.intervalsOn {
                 HStack {
                     Text("Interval \(index + 1)")
+                        .accessibilityIdentifier("intervalTitle.\(index + 1)")
                     Spacer()
                     if index > 0 {
                         Button(role: .destructive) {
@@ -268,6 +273,7 @@ struct LogWorkoutView: View {
                                 .font(.title3)
                         }
                         .accessibilityLabel("Remove interval \(index + 1)")
+                        .accessibilityIdentifier("removeIntervalButton.\(index + 1)")
                     }
                 }
             } else {
