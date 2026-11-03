@@ -6,9 +6,10 @@ list, and seeing progress over time.
 Four tabs:
 
 - **Dashboard** — total meters, this-week meters, workout count, best 2k.
-- **Log** — pick workout type (timed or distance), choose number of intervals,
-  then per-interval enter any two of time / distance / split; the third is
-  derived.
+- **Log** — date, workout type (timed or distance), optional intervals
+  (shared or variable per-interval values), then the time or distance plus
+  one of split / the other quantity / watts; the rest is derived. Optional
+  stroke rate, workout heart rate (average and max), effort 0–10, and notes.
 - **History** — workouts newest-first, swipe to delete.
 - **Progress** — Swift Charts line chart of average split over time (y-axis
   flipped so up means faster) and a bar chart of weekly meters.
