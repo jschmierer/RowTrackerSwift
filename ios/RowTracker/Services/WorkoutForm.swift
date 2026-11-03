@@ -23,9 +23,16 @@ struct WorkoutForm {
     /// is shown and saved; the rest are kept so turning intervals back on
     /// restores them.
     var rows: [IntervalFormRow] = [IntervalFormRow()]
+    /// Heart rate is per workout, not per interval.
+    var recordHeartRate = false
+    var avgHRStr: String = ""
+    var maxHRStr: String = ""
+    var heartRateError: String?
     var notes: String = ""
 
     static let maxIntervals = 20
+    /// Accepted heart-rate range (beats per minute).
+    static let heartRateRange = 30...230
 
     /// The three ways the interval entry can be laid out.
     enum Layout: Equatable {
@@ -206,11 +213,51 @@ struct WorkoutForm {
                 hadError = true
             }
         }
+        // Heart rate: ignored entirely while the toggle is off (anything
+        // typed is kept on the form but not saved).
+        var avgHR: Int?
+        var maxHR: Int?
+        heartRateError = nil
+        if recordHeartRate {
+            do {
+                (avgHR, maxHR) = try Self.parseHeartRate(avg: avgHRStr, max: maxHRStr)
+            } catch {
+                heartRateError = (error as? LocalizedError)?.errorDescription
+                    ?? error.localizedDescription
+                hadError = true
+            }
+        }
+
         guard !hadError else { return nil }
         return Workout(kind: kind,
                        date: RowingDate.startOfLocalDay(for: date),
                        notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
-                       intervals: intervals)
+                       intervals: intervals,
+                       avgHR: avgHR,
+                       maxHR: maxHR)
+    }
+
+    /// Each field is optional (blank saves as nil, like stroke rate). A
+    /// value must be a whole number from 30 to 230 bpm, and max can't be
+    /// below average when both are given.
+    static func parseHeartRate(avg: String, max: String) throws -> (avg: Int?, max: Int?) {
+        let a = try parseOneHeartRate(avg, name: "Average HR")
+        let m = try parseOneHeartRate(max, name: "Max HR")
+        if let a, let m, m < a {
+            throw IntervalFormRow.DeriveError.message(
+                "Max HR (\(m)) can't be lower than average HR (\(a)).")
+        }
+        return (a, m)
+    }
+
+    private static func parseOneHeartRate(_ text: String, name: String) throws -> Int? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        guard let value = Int(trimmed), heartRateRange.contains(value) else {
+            throw IntervalFormRow.DeriveError.message(
+                "\(name) must be a whole number from 30 to 230 bpm.")
+        }
+        return value
     }
 }
 

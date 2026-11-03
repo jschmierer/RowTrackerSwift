@@ -493,3 +493,78 @@ struct WorkoutFormLayoutDerivationTests {
         #expect(!form.canAddInterval)
     }
 }
+
+@Suite("Heart rate validation")
+struct HeartRateValidationTests {
+    private func readyForm() -> WorkoutForm {
+        var form = WorkoutForm()
+        form.rows[0].primaryStr = "20:00"
+        form.rows[0].secondaryStr = "2:00"
+        return form
+    }
+
+    @Test("Valid values save on the workout")
+    func valid() throws {
+        var form = readyForm()
+        form.recordHeartRate = true
+        form.avgHRStr = "152"
+        form.maxHRStr = "176"
+        let made = form.makeWorkout()
+        let w = try #require(made)
+        #expect(w.avgHR == 152)
+        #expect(w.maxHR == 176)
+        #expect(w.intervals.count == 1, "HR is per workout, not per interval")
+    }
+
+    @Test("Toggle off: typed values are not saved")
+    func toggleOff() throws {
+        var form = readyForm()
+        form.avgHRStr = "152"
+        form.maxHRStr = "999"           // invalid, but ignored
+        let made = form.makeWorkout()
+        let w = try #require(made)
+        #expect(w.avgHR == nil && w.maxHR == nil)
+    }
+
+    @Test("Bounds 30 and 230 accepted")
+    func bounds() throws {
+        let r = try WorkoutForm.parseHeartRate(avg: "30", max: "230")
+        #expect(r.avg == 30 && r.max == 230)
+    }
+
+    @Test("Out of range or not whole rejected",
+          arguments: [("29", ""), ("", "231"), ("150.5", ""), ("abc", ""), ("-60", "")])
+    func rejected(_ pair: (String, String)) {
+        #expect(throws: IntervalFormRow.DeriveError.self) {
+            _ = try WorkoutForm.parseHeartRate(avg: pair.0, max: pair.1)
+        }
+    }
+
+    @Test("Max below average rejected; equal accepted")
+    func maxVsAvg() throws {
+        #expect(throws: IntervalFormRow.DeriveError.self) {
+            _ = try WorkoutForm.parseHeartRate(avg: "160", max: "150")
+        }
+        let r = try WorkoutForm.parseHeartRate(avg: "160", max: "160")
+        #expect(r.avg == 160 && r.max == 160)
+    }
+
+    @Test("Blank fields save as nil")
+    func blanks() throws {
+        let r = try WorkoutForm.parseHeartRate(avg: " ", max: "")
+        #expect(r.avg == nil && r.max == nil)
+        let onlyMax = try WorkoutForm.parseHeartRate(avg: "", max: "181")
+        #expect(onlyMax.avg == nil && onlyMax.max == 181)
+    }
+
+    @Test("Invalid HR blocks saving and shows an error")
+    func blocksSave() {
+        var form = readyForm()
+        form.recordHeartRate = true
+        form.avgHRStr = "170"
+        form.maxHRStr = "160"
+        let w = form.makeWorkout()
+        #expect(w == nil)
+        #expect(form.heartRateError?.contains("Max HR") == true)
+    }
+}

@@ -14,6 +14,8 @@ struct LogWorkoutView: View {
         case primary(UUID)
         case secondary(UUID)
         case strokeRate(UUID)
+        case avgHR
+        case maxHR
         case notes
     }
 
@@ -105,6 +107,27 @@ struct LogWorkoutView: View {
                             Label("Add interval", systemImage: "plus.circle.fill")
                         }
                         .disabled(!form.canAddInterval)
+                    }
+                }
+
+                Section {
+                    Toggle("Record heart rate", isOn: $form.recordHeartRate)
+                    if form.recordHeartRate {
+                        TextField("Average HR (bpm)", text: $form.avgHRStr)
+                            .keyboardType(.numberPad)
+                            .focused($focusedField, equals: .avgHR)
+                        TextField("Max HR (bpm)", text: $form.maxHRStr)
+                            .keyboardType(.numberPad)
+                            .focused($focusedField, equals: .maxHR)
+                        if let err = form.heartRateError {
+                            Text(err)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                } footer: {
+                    if form.recordHeartRate {
+                        Text("For the whole workout, not each interval.")
                     }
                 }
 
