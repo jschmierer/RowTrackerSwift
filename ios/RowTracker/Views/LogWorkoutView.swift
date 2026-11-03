@@ -23,6 +23,13 @@ struct LogWorkoutView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Date") {
+                    DatePicker("Workout date",
+                               selection: $date,
+                               in: ...Date(),
+                               displayedComponents: .date)
+                }
+
                 Section("Workout type") {
                     Picker("Type", selection: $kind) {
                         Text("Timed").tag(WorkoutKind.timed)
@@ -34,13 +41,6 @@ struct LogWorkoutView: View {
                          : "Row for a given distance (e.g. 2000 m), log how long it took.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                }
-
-                Section("Date") {
-                    DatePicker("Workout date",
-                               selection: $date,
-                               in: ...Date(),
-                               displayedComponents: .date)
                 }
 
                 Section("Intervals") {
