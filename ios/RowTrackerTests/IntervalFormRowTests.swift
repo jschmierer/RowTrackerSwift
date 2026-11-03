@@ -8,7 +8,6 @@ struct IntervalFormRowTests {
     func timedWithSplit() throws {
         var row = IntervalFormRow()
         row.primaryStr = "5:00"
-        row.secondary = .split
         row.secondaryStr = "1:40"
         let interval = try row.derive(kind: .timed)
         #expect(interval.durationSec == 300)
@@ -20,9 +19,8 @@ struct IntervalFormRowTests {
     func timedWithDistance() throws {
         var row = IntervalFormRow()
         row.primaryStr = "20:00"
-        row.secondary = .otherQuantity
         row.secondaryStr = "5000"
-        let interval = try row.derive(kind: .timed)
+        let interval = try row.derive(kind: .timed, secondary: .otherQuantity)
         #expect(interval.durationSec == 1200)
         #expect(interval.distanceMeters == 5000)
     }
@@ -31,7 +29,6 @@ struct IntervalFormRowTests {
     func distanceWithSplit() throws {
         var row = IntervalFormRow()
         row.primaryStr = "2000"
-        row.secondary = .split
         row.secondaryStr = "1:50"
         let interval = try row.derive(kind: .distance)
         #expect(interval.distanceMeters == 2000)
@@ -43,9 +40,8 @@ struct IntervalFormRowTests {
     func distanceWithTime() throws {
         var row = IntervalFormRow()
         row.primaryStr = "2000"
-        row.secondary = .otherQuantity
         row.secondaryStr = "7:48"
-        let interval = try row.derive(kind: .distance)
+        let interval = try row.derive(kind: .distance, secondary: .otherQuantity)
         #expect(interval.distanceMeters == 2000)
         #expect(interval.durationSec == 468)
     }
@@ -53,7 +49,6 @@ struct IntervalFormRowTests {
     @Test("Missing primary throws")
     func missingPrimary() {
         var row = IntervalFormRow()
-        row.secondary = .split
         row.secondaryStr = "1:40"
         #expect(throws: IntervalFormRow.DeriveError.self) {
             _ = try row.derive(kind: .timed)
@@ -64,7 +59,6 @@ struct IntervalFormRowTests {
     func missingSecondary() {
         var row = IntervalFormRow()
         row.primaryStr = "5:00"
-        row.secondary = .split
         #expect(throws: IntervalFormRow.DeriveError.self) {
             _ = try row.derive(kind: .timed)
         }
@@ -74,7 +68,6 @@ struct IntervalFormRowTests {
     func zeroSplit() {
         var row = IntervalFormRow()
         row.primaryStr = "5:00"
-        row.secondary = .split
         row.secondaryStr = "0:00"
         #expect(throws: IntervalFormRow.DeriveError.self) {
             _ = try row.derive(kind: .timed)
@@ -85,7 +78,6 @@ struct IntervalFormRowTests {
     func badDistance() {
         var row = IntervalFormRow()
         row.primaryStr = "banana"
-        row.secondary = .split
         row.secondaryStr = "1:50"
         #expect(throws: IntervalFormRow.DeriveError.self) {
             _ = try row.derive(kind: .distance)
@@ -98,7 +90,6 @@ struct IntervalFormRowTests {
     func strokeRateBlankIsNil() throws {
         var row = IntervalFormRow()
         row.primaryStr = "5:00"
-        row.secondary = .split
         row.secondaryStr = "1:40"
         row.strokeRateStr = ""
         let interval = try row.derive(kind: .timed)
@@ -109,7 +100,6 @@ struct IntervalFormRowTests {
     func strokeRateWhitespaceIsNil() throws {
         var row = IntervalFormRow()
         row.primaryStr = "5:00"
-        row.secondary = .split
         row.secondaryStr = "1:40"
         row.strokeRateStr = "   "
         let interval = try row.derive(kind: .timed)
@@ -120,7 +110,6 @@ struct IntervalFormRowTests {
     func strokeRateValid() throws {
         var row = IntervalFormRow()
         row.primaryStr = "5:00"
-        row.secondary = .split
         row.secondaryStr = "1:40"
         row.strokeRateStr = "28"
         let interval = try row.derive(kind: .timed)
@@ -132,8 +121,7 @@ struct IntervalFormRowTests {
         for value in [10, 60] {
             var row = IntervalFormRow()
             row.primaryStr = "5:00"
-            row.secondary = .split
-            row.secondaryStr = "1:40"
+                row.secondaryStr = "1:40"
             row.strokeRateStr = "\(value)"
             let interval = try row.derive(kind: .timed)
             #expect(interval.strokeRate == value)
@@ -144,7 +132,6 @@ struct IntervalFormRowTests {
     func strokeRateTooLow() {
         var row = IntervalFormRow()
         row.primaryStr = "5:00"
-        row.secondary = .split
         row.secondaryStr = "1:40"
         row.strokeRateStr = "9"
         #expect(throws: IntervalFormRow.DeriveError.self) {
@@ -156,7 +143,6 @@ struct IntervalFormRowTests {
     func strokeRateTooHigh() {
         var row = IntervalFormRow()
         row.primaryStr = "5:00"
-        row.secondary = .split
         row.secondaryStr = "1:40"
         row.strokeRateStr = "61"
         #expect(throws: IntervalFormRow.DeriveError.self) {
@@ -168,7 +154,6 @@ struct IntervalFormRowTests {
     func strokeRateNotInt() {
         var row = IntervalFormRow()
         row.primaryStr = "5:00"
-        row.secondary = .split
         row.secondaryStr = "1:40"
         row.strokeRateStr = "28.5"
         #expect(throws: IntervalFormRow.DeriveError.self) {
@@ -197,7 +182,6 @@ struct WorkoutFormIntervalsToggleTests {
     private func filled(_ primary: String, _ split: String) -> IntervalFormRow {
         var r = IntervalFormRow()
         r.primaryStr = primary
-        r.secondary = .split
         r.secondaryStr = split
         return r
     }
@@ -325,5 +309,79 @@ struct WorkoutFormVariableToggleTests {
         #expect(w == nil)
         #expect(form.sharedPrimaryError != nil)
         #expect(form.rows.allSatisfy { $0.error == nil })
+    }
+}
+
+@Suite("Secondary metric: watts and switching")
+struct SecondaryMetricTests {
+    @Test("Timed + watts derives distance through the split")
+    func timedWithWatts() throws {
+        var row = IntervalFormRow()
+        row.primaryStr = "10:00"
+        row.secondaryStr = "202.546"          // = 2:00.0 split
+        let interval = try row.derive(kind: .timed, secondary: .watts)
+        #expect(interval.durationSec == 600)
+        // 600 s at 2:00/500 m = 2500 m
+        #expect(interval.distanceMeters == 2500)
+    }
+
+    @Test("Distance + watts derives time through the split")
+    func distanceWithWatts() throws {
+        var row = IntervalFormRow()
+        row.primaryStr = "2000"
+        row.secondaryStr = "202.546"
+        let interval = try row.derive(kind: .distance, secondary: .watts)
+        #expect(interval.distanceMeters == 2000)
+        #expect(abs(interval.durationSec - 480) < 0.01)
+    }
+
+    @Test("Watts must be greater than zero", arguments: ["0", "-150", "abc"])
+    func badWatts(_ text: String) {
+        var row = IntervalFormRow()
+        row.primaryStr = "10:00"
+        row.secondaryStr = text
+        #expect(throws: IntervalFormRow.DeriveError.self) {
+            _ = try row.derive(kind: .timed, secondary: .watts)
+        }
+    }
+
+    @Test("Split defaults, and applies to every interval")
+    func formLevel() throws {
+        var form = WorkoutForm()
+        #expect(form.secondary == .split)
+        form.setIntervalsOn(true)
+        form.setVariable(true)
+        form.rows[0].primaryStr = "5:00"; form.rows[0].secondaryStr = "1:40"
+        form.rows[1].primaryStr = "5:00"; form.rows[1].secondaryStr = "1:50"
+        let made = form.makeWorkout()
+        let w = try #require(made)
+        #expect(w.intervals.map(\.distanceMeters) == [1500, 1364])
+    }
+
+    @Test("Switching split -> watts -> split converts the typed value")
+    func splitWattsSwitch() {
+        var form = WorkoutForm()
+        form.rows[0].secondaryStr = "2:00"
+        form.setSecondary(.watts)
+        #expect(form.rows[0].secondaryStr == "202.5")
+        form.setSecondary(.split)
+        #expect(form.rows[0].secondaryStr == "02:00.0")
+    }
+
+    @Test("Switching split -> other uses the primary value")
+    func splitToOther() {
+        var form = WorkoutForm()
+        form.rows[0].primaryStr = "5:00"
+        form.rows[0].secondaryStr = "1:40"
+        form.setSecondary(.otherQuantity)
+        #expect(form.rows[0].secondaryStr == "1500")
+    }
+
+    @Test("A value that can't be converted is left as typed")
+    func unconvertibleKept() {
+        var form = WorkoutForm()
+        form.rows[0].secondaryStr = "1500"     // distance, but no primary
+        form.setSecondary(.otherQuantity)      // "1500" isn't a valid split
+        #expect(form.rows[0].secondaryStr == "1500")
     }
 }

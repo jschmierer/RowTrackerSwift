@@ -61,6 +61,24 @@ struct LogWorkoutView: View {
                     }
                 }
 
+                Section {
+                    Picker("Also enter", selection: Binding(
+                        get: { form.secondary },
+                        set: { form.setSecondary($0) }
+                    )) {
+                        ForEach(SecondaryField.allCases, id: \.self) { opt in
+                            Text(opt.label(for: kind)).tag(opt)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("Also enter")
+                } footer: {
+                    Text(kind == .timed
+                         ? "Time plus one of these; the rest is worked out."
+                         : "Distance plus one of these; the rest is worked out.")
+                }
+
                 if form.layout == .uniform {
                     Section {
                         TextField(kind.sharedPrimaryLabel, text: $form.sharedPrimaryStr)
@@ -150,16 +168,9 @@ struct LogWorkoutView: View {
                     .focused($focusedField, equals: .primary(index))
             }
 
-            // Secondary picker + value.
-            Picker("Also enter", selection: $form.rows[index].secondary) {
-                ForEach(kind.secondaryOptions, id: \.self) { opt in
-                    Text(opt.label(for: kind)).tag(opt)
-                }
-            }
-            .pickerStyle(.segmented)
-            TextField(form.rows[index].secondary.fieldLabel(for: kind),
+            TextField(form.secondary.fieldLabel(for: kind),
                       text: $form.rows[index].secondaryStr)
-                .keyboardType(form.rows[index].secondary.keyboard(for: kind))
+                .keyboardType(form.secondary.keyboard(for: kind))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($focusedField, equals: .secondary(index))
@@ -227,9 +238,6 @@ private extension WorkoutKind {
         }
     }
 
-    var secondaryOptions: [SecondaryField] {
-        [.split, .otherQuantity]
-    }
 }
 
 private extension SecondaryField {
@@ -239,6 +247,7 @@ private extension SecondaryField {
         case (.split, _): return "Split"
         case (.otherQuantity, .timed): return "Distance"
         case (.otherQuantity, .distance): return "Time"
+        case (.watts, _): return "Watts"
         }
     }
 
@@ -248,6 +257,7 @@ private extension SecondaryField {
         case (.split, _): return "Split per 500 m (M:SS)"
         case (.otherQuantity, .timed): return "Distance (meters)"
         case (.otherQuantity, .distance): return "Time (M:SS or H:MM:SS)"
+        case (.watts, _): return "Average watts"
         }
     }
 
@@ -256,6 +266,7 @@ private extension SecondaryField {
         case (.split, _): return .numbersAndPunctuation
         case (.otherQuantity, .timed): return .decimalPad
         case (.otherQuantity, .distance): return .numbersAndPunctuation
+        case (.watts, _): return .decimalPad
         }
     }
 }

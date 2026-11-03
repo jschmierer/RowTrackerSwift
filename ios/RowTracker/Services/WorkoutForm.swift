@@ -14,6 +14,8 @@ struct WorkoutForm {
     /// "Time per interval" / "Distance per interval" in the shared layout.
     var sharedPrimaryStr: String = ""
     var sharedPrimaryError: String?
+    /// What the rower enters besides the primary value, for every interval.
+    private(set) var secondary: SecondaryField = .split
     /// `sharedPrimaryStr` as it was when the shared layout was entered, so
     /// leaving it can tell whether the rower changed it.
     private var sharedPrimaryBaseline: String = ""
@@ -61,6 +63,69 @@ struct WorkoutForm {
         let old = layout
         variable = on
         carryPrimaryValues(from: old, to: layout)
+    }
+
+    /// Changes the secondary metric. Values already typed are converted to
+    /// the new metric where that's possible (split and watts always; the
+    /// other quantity when the primary value is valid). A value that can't
+    /// be converted is left as typed for the rower to fix.
+    mutating func setSecondary(_ new: SecondaryField) {
+        let old = secondary
+        guard new != old else { return }
+        for i in rows.indices {
+            if let converted = convertedSecondary(row: rows[i], from: old, to: new) {
+                rows[i].secondaryStr = converted
+            }
+        }
+        secondary = new
+    }
+
+    private func convertedSecondary(row: IntervalFormRow,
+                                    from old: SecondaryField,
+                                    to new: SecondaryField) -> String? {
+        let text = row.secondaryStr.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return nil }
+
+        // Split <-> watts needs nothing else.
+        if old != .otherQuantity, new != .otherQuantity,
+           let split = try? IntervalFormRow.parseSplit(text, as: old) {
+            return Self.format(split: split, as: new)
+        }
+        // Anything involving the other quantity needs the whole interval.
+        let primary = layout == .uniform ? sharedPrimaryStr : row.primaryStr
+        var probe = row
+        probe.strokeRateStr = ""      // irrelevant to the conversion
+        guard let interval = try? probe.derive(kind: kind, secondary: old,
+                                               primaryOverride: primary),
+              let split = interval.splitSec else { return nil }
+        switch new {
+        case .otherQuantity:
+            switch kind {
+            case .timed:
+                return String(Int((interval.distanceMeters ?? 0).rounded()))
+            case .distance:
+                return RowingMath.formatTime(interval.durationSec)
+            }
+        case .split, .watts:
+            return Self.format(split: split, as: new)
+        }
+    }
+
+    private static func format(split: TimeInterval, as field: SecondaryField) -> String? {
+        switch field {
+        case .split:
+            return RowingMath.formatTime(split)
+        case .watts:
+            // One decimal so split -> watts -> split lands on the same tenth.
+            return RowingMath.watts(fromSplit: split).map { watts in
+                let tenths = (watts * 10).rounded() / 10
+                return tenths == tenths.rounded()
+                    ? String(Int(tenths))
+                    : String(format: "%.1f", tenths)
+            }
+        case .otherQuantity:
+            return nil
+        }
     }
 
     /// Keeps entered primary values when the layout changes.
@@ -126,7 +191,9 @@ struct WorkoutForm {
                 continue
             }
             do {
-                intervals.append(try rows[i].derive(kind: kind, primaryOverride: override))
+                intervals.append(try rows[i].derive(kind: kind,
+                                                    secondary: secondary,
+                                                    primaryOverride: override))
                 rows[i].error = nil
             } catch {
                 rows[i].error = (error as? LocalizedError)?.errorDescription
@@ -150,7 +217,8 @@ struct WorkoutForm {
 struct IntervalFormRow: Identifiable {
     let id = UUID()
     var primaryStr: String = ""
-    var secondary: SecondaryField = .split
+    /// The secondary value as typed; its meaning is the form-level
+    /// `WorkoutForm.secondary` (split, the other quantity, or watts).
     var secondaryStr: String = ""
     /// Stroke rate (spm). Optional on the form — blank saves as nil.
     var strokeRateStr: String = ""
@@ -171,9 +239,15 @@ struct IntervalFormRow: Identifiable {
         }
     }
 
-    /// Builds the interval. `primaryOverride` supplies the primary value
-    /// when it lives outside the row (the shared "per interval" field).
-    func derive(kind: WorkoutKind, primaryOverride: String? = nil) throws -> Interval {
+    /// Builds the interval from the primary value plus `secondary`.
+    /// `primaryOverride` supplies the primary value when it lives outside
+    /// the row (the shared "per interval" field).
+    ///
+    /// Only distance and duration are stored. Watts are converted to a
+    /// split first, then handled exactly like a split.
+    func derive(kind: WorkoutKind,
+                secondary: SecondaryField = .split,
+                primaryOverride: String? = nil) throws -> Interval {
         let primaryText = (primaryOverride ?? primaryStr)
             .trimmingCharacters(in: .whitespaces)
         let secondaryText = secondaryStr.trimmingCharacters(in: .whitespaces)
@@ -181,16 +255,16 @@ struct IntervalFormRow: Identifiable {
             throw DeriveError.missing(kind.primaryFieldName)
         }
         guard !secondaryText.isEmpty else {
-            throw DeriveError.missing(secondary.fieldName)
+            throw DeriveError.missing(secondary.fieldName(for: kind))
         }
 
         let strokeRate = try parseStrokeRate()
         let primary = try Self.parsePrimary(primaryText, kind: kind)
 
         switch (kind, secondary) {
-        case (.timed, .split):
+        case (.timed, .split), (.timed, .watts):
             let time = primary
-            let split = try Self.parsePositiveTime(secondaryText, name: "Split")
+            let split = try Self.parseSplit(secondaryText, as: secondary)
             let distance = RowingMath.distance(fromTime: time, split: split).rounded()
             return Interval(durationSec: time, distanceMeters: distance, strokeRate: strokeRate)
 
@@ -199,9 +273,9 @@ struct IntervalFormRow: Identifiable {
             let distance = try Self.parseDistance(secondaryText)
             return Interval(durationSec: primary, distanceMeters: distance, strokeRate: strokeRate)
 
-        case (.distance, .split):
+        case (.distance, .split), (.distance, .watts):
             let distance = primary
-            let split = try Self.parsePositiveTime(secondaryText, name: "Split")
+            let split = try Self.parseSplit(secondaryText, as: secondary)
             let time = RowingMath.time(fromDistance: distance, split: split)
             return Interval(durationSec: time, distanceMeters: distance, strokeRate: strokeRate)
 
@@ -210,6 +284,26 @@ struct IntervalFormRow: Identifiable {
             let time = try Self.parsePositiveTime(secondaryText, name: "Time")
             return Interval(durationSec: time, distanceMeters: primary, strokeRate: strokeRate)
         }
+    }
+
+    /// A split in seconds per 500 m, from either a typed split or watts.
+    static func parseSplit(_ text: String, as field: SecondaryField) throws -> TimeInterval {
+        if field == .watts {
+            let watts = try parseWatts(text)
+            guard let split = RowingMath.split(fromWatts: watts) else {
+                throw DeriveError.message("Watts must be a number greater than 0.")
+            }
+            return split
+        }
+        return try parsePositiveTime(text, name: "Split")
+    }
+
+    static func parseWatts(_ text: String) throws -> Double {
+        guard let watts = Double(text.trimmingCharacters(in: .whitespaces)),
+              watts > 0, watts.isFinite else {
+            throw DeriveError.message("Watts must be a number greater than 0.")
+        }
+        return watts
     }
 
     /// The primary value: seconds for a Timed workout, meters for a
@@ -252,9 +346,10 @@ struct IntervalFormRow: Identifiable {
 
 /// Which secondary value the rower is entering. The third value is computed
 /// from the primary (set by the workout type) and this one.
-enum SecondaryField: Hashable {
+enum SecondaryField: Hashable, CaseIterable {
     case split
     case otherQuantity   // "distance" for a Timed workout, "time" for a Distance workout
+    case watts           // converted to a split, never stored
 }
 
 
@@ -271,10 +366,12 @@ extension WorkoutKind {
 
 extension SecondaryField {
     /// Prose label used in error messages ("Enter a value for <this>").
-    var fieldName: String {
-        switch self {
-        case .split: return "split"
-        case .otherQuantity: return "the other value"
+    func fieldName(for kind: WorkoutKind) -> String {
+        switch (self, kind) {
+        case (.split, _): return "split"
+        case (.otherQuantity, .timed): return "distance"
+        case (.otherQuantity, .distance): return "time"
+        case (.watts, _): return "watts"
         }
     }
 }
