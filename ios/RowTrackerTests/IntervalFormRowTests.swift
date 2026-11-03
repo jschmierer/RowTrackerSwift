@@ -232,3 +232,98 @@ struct WorkoutFormIntervalsToggleTests {
         #expect(again == nil, "blank 2nd interval now counts")
     }
 }
+
+@Suite("WorkoutForm variable toggle")
+struct WorkoutFormVariableToggleTests {
+    @Test("Layout follows the two toggles")
+    func layouts() {
+        var form = WorkoutForm()
+        #expect(form.layout == .single)
+        form.setIntervalsOn(true)
+        #expect(form.layout == .uniform)
+        form.setVariable(true)
+        #expect(form.layout == .variable)
+        form.setIntervalsOn(false)
+        #expect(form.layout == .single, "Variable is ignored with intervals off")
+    }
+
+    @Test("Single -> shared: the value moves to the shared field")
+    func singleToShared() {
+        var form = WorkoutForm()
+        form.rows[0].primaryStr = "5:00"
+        form.setIntervalsOn(true)
+        #expect(form.sharedPrimaryStr == "5:00")
+    }
+
+    @Test("Shared -> variable: every interval gets the shared value")
+    func sharedToVariable() {
+        var form = WorkoutForm()
+        form.setIntervalsOn(true)
+        form.sharedPrimaryStr = "2:00"
+        form.setVariable(true)
+        #expect(form.rows.map(\.primaryStr) == ["2:00", "2:00"])
+    }
+
+    @Test("Variable -> shared -> variable without editing keeps each value")
+    func variableRoundTrip() {
+        var form = WorkoutForm()
+        form.setIntervalsOn(true)
+        form.setVariable(true)
+        form.rows[0].primaryStr = "1:00"
+        form.rows[1].primaryStr = "2:00"
+        form.setVariable(false)
+        #expect(form.sharedPrimaryStr == "1:00")
+        form.setVariable(true)
+        #expect(form.rows.map(\.primaryStr) == ["1:00", "2:00"])
+    }
+
+    @Test("Editing the shared value overwrites the per-interval values")
+    func editedSharedWins() {
+        var form = WorkoutForm()
+        form.setIntervalsOn(true)
+        form.setVariable(true)
+        form.rows[0].primaryStr = "1:00"
+        form.rows[1].primaryStr = "2:00"
+        form.setVariable(false)
+        form.sharedPrimaryStr = "3:00"
+        form.setVariable(true)
+        #expect(form.rows.map(\.primaryStr) == ["3:00", "3:00"])
+    }
+
+    @Test("Shared -> intervals off: the single box gets the shared value")
+    func sharedToSingle() {
+        var form = WorkoutForm()
+        form.setIntervalsOn(true)
+        form.sharedPrimaryStr = "500"
+        form.kind = .distance
+        form.setIntervalsOn(false)
+        #expect(form.rows[0].primaryStr == "500")
+    }
+
+    @Test("Secondary and stroke-rate values survive every layout change")
+    func secondaryKept() {
+        var form = WorkoutForm()
+        form.setIntervalsOn(true)
+        form.rows[0].secondaryStr = "1:45"
+        form.rows[1].secondaryStr = "1:50"
+        form.rows[1].strokeRateStr = "30"
+        form.setVariable(true)
+        form.setVariable(false)
+        form.setIntervalsOn(false)
+        form.setIntervalsOn(true)
+        #expect(form.rows.map(\.secondaryStr) == ["1:45", "1:50"])
+        #expect(form.rows[1].strokeRateStr == "30")
+    }
+
+    @Test("Blank shared value is reported once, on the shared field")
+    func blankShared() {
+        var form = WorkoutForm()
+        form.setIntervalsOn(true)
+        form.rows[0].secondaryStr = "1:45"
+        form.rows[1].secondaryStr = "1:50"
+        let w = form.makeWorkout()
+        #expect(w == nil)
+        #expect(form.sharedPrimaryError != nil)
+        #expect(form.rows.allSatisfy { $0.error == nil })
+    }
+}

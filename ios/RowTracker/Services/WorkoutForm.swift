@@ -8,6 +8,15 @@ struct WorkoutForm {
     var kind: WorkoutKind = .timed
     /// Off: one box for a single piece. On: a list of intervals.
     private(set) var intervalsOn = false
+    /// Only meaningful with intervals on. Off: every interval shares one
+    /// primary value (`sharedPrimaryStr`). On: each row has its own.
+    private(set) var variable = false
+    /// "Time per interval" / "Distance per interval" in the shared layout.
+    var sharedPrimaryStr: String = ""
+    var sharedPrimaryError: String?
+    /// `sharedPrimaryStr` as it was when the shared layout was entered, so
+    /// leaving it can tell whether the rower changed it.
+    private var sharedPrimaryBaseline: String = ""
     /// Every row the rower has filled in. With intervals off only the first
     /// is shown and saved; the rest are kept so turning intervals back on
     /// restores them.
@@ -16,17 +25,65 @@ struct WorkoutForm {
 
     static let maxIntervals = 20
 
+    /// The three ways the interval entry can be laid out.
+    enum Layout: Equatable {
+        /// Intervals off: one box with primary, secondary, stroke rate.
+        case single
+        /// Intervals on, Variable off: one shared primary field, then per
+        /// interval only the secondary value and stroke rate.
+        case uniform
+        /// Intervals on, Variable on: every interval has all three fields.
+        case variable
+    }
+
+    var layout: Layout {
+        guard intervalsOn else { return .single }
+        return variable ? .variable : .uniform
+    }
+
     /// Indices of the rows the current layout shows (and saves).
     var activeRowIndices: Range<Int> {
         intervalsOn ? rows.indices : 0..<1
     }
 
     mutating func setIntervalsOn(_ on: Bool) {
+        let old = layout
         intervalsOn = on
         // An interval workout has at least two pieces; start with a blank
         // second one rather than making the rower tap "add" straight away.
         if on && rows.count < 2 {
             rows.append(IntervalFormRow())
+        }
+        carryPrimaryValues(from: old, to: layout)
+    }
+
+    mutating func setVariable(_ on: Bool) {
+        let old = layout
+        variable = on
+        carryPrimaryValues(from: old, to: layout)
+    }
+
+    /// Keeps entered primary values when the layout changes.
+    ///
+    /// - Entering the shared layout: the shared field takes the first
+    ///   interval's value (if it has one).
+    /// - Leaving it: intervals with a blank primary take the shared value,
+    ///   and if the rower edited the shared value, every interval takes it
+    ///   (that is what the form showed them). If they didn't touch it, the
+    ///   per-interval values from before come back unchanged.
+    private mutating func carryPrimaryValues(from old: Layout, to new: Layout) {
+        guard old != new else { return }
+        if new == .uniform {
+            let first = rows[0].primaryStr.trimmingCharacters(in: .whitespaces)
+            if !first.isEmpty { sharedPrimaryStr = rows[0].primaryStr }
+            sharedPrimaryBaseline = sharedPrimaryStr
+            sharedPrimaryError = nil
+        } else if old == .uniform {
+            let edited = sharedPrimaryStr != sharedPrimaryBaseline
+            for i in rows.indices {
+                let blank = rows[i].primaryStr.trimmingCharacters(in: .whitespaces).isEmpty
+                if edited || blank { rows[i].primaryStr = sharedPrimaryStr }
+            }
         }
     }
 
@@ -44,13 +101,32 @@ struct WorkoutForm {
     mutating func makeWorkout() -> Workout? {
         var intervals: [Interval] = []
         var hadError = false
+
+        // Shared layout: check the shared field once, not on every row.
+        var override: String?
+        sharedPrimaryError = nil
+        if layout == .uniform {
+            let text = sharedPrimaryStr.trimmingCharacters(in: .whitespaces)
+            do {
+                guard !text.isEmpty else {
+                    throw IntervalFormRow.DeriveError.missing(kind.primaryFieldName)
+                }
+                _ = try IntervalFormRow.parsePrimary(text, kind: kind)
+                override = text
+            } catch {
+                sharedPrimaryError = (error as? LocalizedError)?.errorDescription
+                    ?? error.localizedDescription
+                hadError = true
+            }
+        }
+
         for i in rows.indices {
-            guard activeRowIndices.contains(i) else {
+            guard activeRowIndices.contains(i), !(layout == .uniform && override == nil) else {
                 rows[i].error = nil
                 continue
             }
             do {
-                intervals.append(try rows[i].derive(kind: kind))
+                intervals.append(try rows[i].derive(kind: kind, primaryOverride: override))
                 rows[i].error = nil
             } catch {
                 rows[i].error = (error as? LocalizedError)?.errorDescription
@@ -95,10 +171,13 @@ struct IntervalFormRow: Identifiable {
         }
     }
 
-    func derive(kind: WorkoutKind) throws -> Interval {
-        let primary = primaryStr.trimmingCharacters(in: .whitespaces)
+    /// Builds the interval. `primaryOverride` supplies the primary value
+    /// when it lives outside the row (the shared "per interval" field).
+    func derive(kind: WorkoutKind, primaryOverride: String? = nil) throws -> Interval {
+        let primaryText = (primaryOverride ?? primaryStr)
+            .trimmingCharacters(in: .whitespaces)
         let secondaryText = secondaryStr.trimmingCharacters(in: .whitespaces)
-        guard !primary.isEmpty else {
+        guard !primaryText.isEmpty else {
             throw DeriveError.missing(kind.primaryFieldName)
         }
         guard !secondaryText.isEmpty else {
@@ -106,43 +185,56 @@ struct IntervalFormRow: Identifiable {
         }
 
         let strokeRate = try parseStrokeRate()
+        let primary = try Self.parsePrimary(primaryText, kind: kind)
 
         switch (kind, secondary) {
         case (.timed, .split):
-            let time = try RowingMath.parseTime(primary)
-            let split = try RowingMath.parseTime(secondaryText)
-            guard time > 0 else { throw DeriveError.message("Time must be greater than zero.") }
-            guard split > 0 else { throw DeriveError.message("Split must be greater than zero.") }
+            let time = primary
+            let split = try Self.parsePositiveTime(secondaryText, name: "Split")
             let distance = RowingMath.distance(fromTime: time, split: split).rounded()
             return Interval(durationSec: time, distanceMeters: distance, strokeRate: strokeRate)
 
         case (.timed, .otherQuantity):
             // Timed + distance
-            let time = try RowingMath.parseTime(primary)
-            guard let distance = Double(secondaryText), distance > 0 else {
-                throw DeriveError.message("Distance must be a positive number of meters.")
-            }
-            guard time > 0 else { throw DeriveError.message("Time must be greater than zero.") }
-            return Interval(durationSec: time, distanceMeters: distance, strokeRate: strokeRate)
+            let distance = try Self.parseDistance(secondaryText)
+            return Interval(durationSec: primary, distanceMeters: distance, strokeRate: strokeRate)
 
         case (.distance, .split):
-            guard let distance = Double(primary), distance > 0 else {
-                throw DeriveError.message("Distance must be a positive number of meters.")
-            }
-            let split = try RowingMath.parseTime(secondaryText)
-            guard split > 0 else { throw DeriveError.message("Split must be greater than zero.") }
+            let distance = primary
+            let split = try Self.parsePositiveTime(secondaryText, name: "Split")
             let time = RowingMath.time(fromDistance: distance, split: split)
             return Interval(durationSec: time, distanceMeters: distance, strokeRate: strokeRate)
 
         case (.distance, .otherQuantity):
             // Distance + time
-            guard let distance = Double(primary), distance > 0 else {
-                throw DeriveError.message("Distance must be a positive number of meters.")
-            }
-            let time = try RowingMath.parseTime(secondaryText)
-            guard time > 0 else { throw DeriveError.message("Time must be greater than zero.") }
-            return Interval(durationSec: time, distanceMeters: distance, strokeRate: strokeRate)
+            let time = try Self.parsePositiveTime(secondaryText, name: "Time")
+            return Interval(durationSec: time, distanceMeters: primary, strokeRate: strokeRate)
         }
+    }
+
+    /// The primary value: seconds for a Timed workout, meters for a
+    /// Distance workout. Throws a friendly message when invalid.
+    static func parsePrimary(_ text: String, kind: WorkoutKind) throws -> Double {
+        switch kind {
+        case .timed: return try parsePositiveTime(text, name: "Time")
+        case .distance: return try parseDistance(text)
+        }
+    }
+
+    static func parsePositiveTime(_ text: String, name: String) throws -> TimeInterval {
+        let value = try RowingMath.parseTime(text)
+        guard value > 0 else {
+            throw DeriveError.message("\(name) must be greater than zero.")
+        }
+        return value
+    }
+
+    static func parseDistance(_ text: String) throws -> Double {
+        guard let distance = Double(text.trimmingCharacters(in: .whitespaces)),
+              distance > 0, distance.isFinite else {
+            throw DeriveError.message("Distance must be a positive number of meters.")
+        }
+        return distance
     }
 
     /// Returns nil for a blank field (so the stored column stays NULL), the

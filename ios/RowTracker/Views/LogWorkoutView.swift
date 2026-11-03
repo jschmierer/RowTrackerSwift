@@ -10,6 +10,7 @@ struct LogWorkoutView: View {
     @FocusState private var focusedField: FocusedField?
 
     enum FocusedField: Hashable {
+        case sharedPrimary
         case primary(Int)
         case secondary(Int)
         case strokeRate(Int)
@@ -47,12 +48,35 @@ struct LogWorkoutView: View {
                         set: { form.setIntervalsOn($0) }
                     ))
                     if form.intervalsOn {
+                        Toggle("Variable", isOn: Binding(
+                            get: { form.variable },
+                            set: { form.setVariable($0) }
+                        ))
                         Stepper(value: Binding(
                             get: { form.rows.count },
                             set: { form.setIntervalCount($0) }
                         ), in: 2...WorkoutForm.maxIntervals) {
                             Text("\(form.rows.count) intervals")
                         }
+                    }
+                }
+
+                if form.layout == .uniform {
+                    Section {
+                        TextField(kind.sharedPrimaryLabel, text: $form.sharedPrimaryStr)
+                            .keyboardType(kind.primaryKeyboard)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .focused($focusedField, equals: .sharedPrimary)
+                        if let err = form.sharedPrimaryError {
+                            Text(err)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    } header: {
+                        Text(kind.sharedPrimaryTitle)
+                    } footer: {
+                        Text("The same for every interval. Turn on Variable to set each one.")
                     }
                 }
 
@@ -116,12 +140,15 @@ struct LogWorkoutView: View {
     @ViewBuilder
     private func intervalSection(index: Int) -> some View {
         Section(form.intervalsOn ? "Interval \(index + 1)" : "Workout") {
-            // Primary field — depends on workout type.
-            TextField(kind.primaryFieldLabel, text: $form.rows[index].primaryStr)
-                .keyboardType(kind.primaryKeyboard)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .focused($focusedField, equals: .primary(index))
+            // Primary field — depends on workout type. In the shared
+            // layout it lives once above the list instead.
+            if form.layout != .uniform {
+                TextField(kind.primaryFieldLabel, text: $form.rows[index].primaryStr)
+                    .keyboardType(kind.primaryKeyboard)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($focusedField, equals: .primary(index))
+            }
 
             // Secondary picker + value.
             Picker("Also enter", selection: $form.rows[index].secondary) {
@@ -175,6 +202,21 @@ private extension WorkoutKind {
         switch self {
         case .timed: return "Time (M:SS or H:MM:SS)"
         case .distance: return "Distance (meters)"
+        }
+    }
+
+    /// Section title for the shared field ("Time per interval").
+    var sharedPrimaryTitle: String {
+        switch self {
+        case .timed: return "Time per interval"
+        case .distance: return "Distance per interval"
+        }
+    }
+
+    var sharedPrimaryLabel: String {
+        switch self {
+        case .timed: return "Time per interval (M:SS)"
+        case .distance: return "Distance per interval (meters)"
         }
     }
 
