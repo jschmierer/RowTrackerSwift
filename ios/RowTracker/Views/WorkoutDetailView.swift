@@ -18,6 +18,9 @@ struct WorkoutDetailView: View {
                 LabeledContent("Date", value: Self.dateFormatter.string(from: workout.date))
                 LabeledContent("Type",
                                value: workout.kind == .timed ? "Timed" : "Distance")
+                LabeledContent("Average HR", value: DetailFormat.heartRate(workout.avgHR))
+                LabeledContent("Max HR", value: DetailFormat.heartRate(workout.maxHR))
+                LabeledContent("Effort", value: DetailFormat.effort(workout.effort))
                 if !workout.notes.isEmpty {
                     LabeledContent("Notes") {
                         Text(workout.notes)
@@ -65,18 +68,27 @@ private struct IntervalDetailRow: View {
             Text("Interval \(index + 1)")
                 .font(.subheadline)
                 .fontWeight(.medium)
-            HStack(alignment: .top) {
-                statColumn("Time", value: RowingMath.formatTime(interval.durationSec))
-                statColumn("Distance",
-                           value: interval.distanceMeters.map {
-                               WorkoutDetailView.distanceString($0)
-                           } ?? "—")
-                statColumn("Split",
-                           value: interval.splitSec.map {
-                               RowingMath.formatTime($0) + " /500m"
-                           } ?? "—")
-                statColumn("Rate",
-                           value: interval.strokeRate.map { "\($0) spm" } ?? "—")
+            // Two rows of three so five stats fit on a phone without
+            // squeezing the split.
+            Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                GridRow {
+                    statColumn("Time", value: RowingMath.formatTime(interval.durationSec))
+                    statColumn("Distance",
+                               value: interval.distanceMeters.map {
+                                   WorkoutDetailView.distanceString($0)
+                               } ?? DetailFormat.missing)
+                    statColumn("Split",
+                               value: interval.splitSec.map {
+                                   RowingMath.formatTime($0) + " /500m"
+                               } ?? DetailFormat.missing)
+                }
+                GridRow {
+                    statColumn("Watts", value: DetailFormat.watts(interval.watts))
+                    statColumn("Rate",
+                               value: interval.strokeRate.map { "\($0) spm" }
+                                   ?? DetailFormat.missing)
+                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                }
             }
         }
         .padding(.vertical, 4)
