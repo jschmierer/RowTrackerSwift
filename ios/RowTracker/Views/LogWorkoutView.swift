@@ -156,10 +156,12 @@ struct LogWorkoutView: View {
                     .accessibilityValue("\(form.effort) out of 10")
                 }
 
-                Section("Notes (optional)") {
-                    TextField("How did it feel? Rate, rig, drag...",
+                Section("Notes") {
+                    // Starts three lines tall so it reads as a multi-line
+                    // box, grows to eight, then scrolls.
+                    TextField("How did it feel? Rig, drag, anything else (optional)",
                               text: $form.notes, axis: .vertical)
-                        .lineLimit(1...3)
+                        .lineLimit(3...8)
                         .focused($focusedField, equals: .notes)
                 }
 
