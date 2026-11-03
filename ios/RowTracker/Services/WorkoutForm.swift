@@ -152,13 +152,18 @@ struct WorkoutForm {
         }
     }
 
-    mutating func setIntervalCount(_ n: Int) {
-        let n = min(max(n, 1), Self.maxIntervals)
-        if n > rows.count {
-            rows.append(contentsOf: (rows.count..<n).map { _ in IntervalFormRow() })
-        } else if n < rows.count {
-            rows = Array(rows.prefix(n))
-        }
+    var canAddInterval: Bool { rows.count < Self.maxIntervals }
+
+    /// Appends a blank interval (intervals layouts only).
+    mutating func addInterval() {
+        guard intervalsOn, canAddInterval else { return }
+        rows.append(IntervalFormRow())
+    }
+
+    /// Removes an interval. The first one can't be removed.
+    mutating func removeInterval(id: IntervalFormRow.ID) {
+        guard let i = rows.firstIndex(where: { $0.id == id }), i > 0 else { return }
+        rows.remove(at: i)
     }
 
     /// Validates the active rows, stores a per-row error message on each

@@ -385,3 +385,111 @@ struct SecondaryMetricTests {
         #expect(form.rows[0].secondaryStr == "1500")
     }
 }
+
+@Suite("WorkoutForm derivation in each layout")
+struct WorkoutFormLayoutDerivationTests {
+    @Test("Layout a (single): one interval from the one box")
+    func single() throws {
+        var form = WorkoutForm()
+        form.kind = .distance
+        form.rows[0].primaryStr = "2000"
+        form.rows[0].secondaryStr = "1:50"
+        form.rows[0].strokeRateStr = "30"
+        let made = form.makeWorkout()
+        let w = try #require(made)
+        #expect(w.intervals.count == 1)
+        #expect(w.intervals[0].distanceMeters == 2000)
+        #expect(w.intervals[0].durationSec == 440)
+        #expect(w.intervals[0].strokeRate == 30)
+    }
+
+    @Test("Layout b (shared): every interval uses the shared primary")
+    func shared() throws {
+        var form = WorkoutForm()
+        form.kind = .timed
+        form.setIntervalsOn(true)
+        form.addInterval()
+        form.sharedPrimaryStr = "4:00"
+        form.rows[0].secondaryStr = "1:40"     // 1200 m
+        form.rows[1].secondaryStr = "2:00"     // 1000 m
+        form.rows[2].secondaryStr = "1:36"     // 1250 m
+        form.rows[2].strokeRateStr = "28"
+        // A stale per-row primary must be ignored in this layout.
+        form.rows[1].primaryStr = "9:99"
+        let made = form.makeWorkout()
+        let w = try #require(made)
+        #expect(w.intervals.map(\.durationSec) == [240, 240, 240])
+        #expect(w.intervals.map(\.distanceMeters) == [1200, 1000, 1250])
+        #expect(w.intervals.map(\.strokeRate) == [nil, nil, 28])
+    }
+
+    @Test("Layout b with watts")
+    func sharedWithWatts() throws {
+        var form = WorkoutForm()
+        form.kind = .distance
+        form.setIntervalsOn(true)
+        form.setSecondary(.watts)
+        form.sharedPrimaryStr = "500"
+        form.rows[0].secondaryStr = "202.546"   // 2:00.0
+        form.rows[1].secondaryStr = "302.343"   // 1:45.0
+        let made = form.makeWorkout()
+        let w = try #require(made)
+        #expect(w.intervals.map(\.distanceMeters) == [500, 500])
+        #expect(abs(w.intervals[0].durationSec - 120) < 0.01)
+        #expect(abs(w.intervals[1].durationSec - 105) < 0.01)
+    }
+
+    @Test("Layout c (variable): each interval uses its own primary")
+    func variable() throws {
+        var form = WorkoutForm()
+        form.kind = .distance
+        form.setIntervalsOn(true)
+        form.setVariable(true)
+        form.setSecondary(.otherQuantity)        // Time
+        form.rows[0].primaryStr = "1000"; form.rows[0].secondaryStr = "3:30"
+        form.rows[1].primaryStr = "500";  form.rows[1].secondaryStr = "1:40"
+        let made = form.makeWorkout()
+        let w = try #require(made)
+        #expect(w.intervals.map(\.distanceMeters) == [1000, 500])
+        #expect(w.intervals.map(\.durationSec) == [210, 100])
+    }
+
+    @Test("Layout c reports a bad row on that row only")
+    func variableRowError() {
+        var form = WorkoutForm()
+        form.setIntervalsOn(true)
+        form.setVariable(true)
+        form.rows[0].primaryStr = "5:00"; form.rows[0].secondaryStr = "1:40"
+        form.rows[1].primaryStr = "";     form.rows[1].secondaryStr = "1:40"
+        let w = form.makeWorkout()
+        #expect(w == nil)
+        #expect(form.rows[0].error == nil)
+        #expect(form.rows[1].error != nil)
+    }
+
+    @Test("Add and remove intervals; the first can't be removed")
+    func addRemove() {
+        var form = WorkoutForm()
+        form.addInterval()
+        #expect(form.rows.count == 1, "no adding with intervals off")
+        form.setIntervalsOn(true)
+        form.addInterval()
+        #expect(form.rows.count == 3)
+        let firstID = form.rows[0].id
+        let secondID = form.rows[1].id
+        form.removeInterval(id: firstID)
+        #expect(form.rows.count == 3)
+        form.removeInterval(id: secondID)
+        #expect(form.rows.count == 2)
+        #expect(!form.rows.contains { $0.id == secondID })
+    }
+
+    @Test("At most 20 intervals")
+    func maxIntervals() {
+        var form = WorkoutForm()
+        form.setIntervalsOn(true)
+        for _ in 0..<30 { form.addInterval() }
+        #expect(form.rows.count == WorkoutForm.maxIntervals)
+        #expect(!form.canAddInterval)
+    }
+}

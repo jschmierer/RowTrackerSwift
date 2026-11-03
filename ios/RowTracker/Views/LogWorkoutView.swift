@@ -11,9 +11,9 @@ struct LogWorkoutView: View {
 
     enum FocusedField: Hashable {
         case sharedPrimary
-        case primary(Int)
-        case secondary(Int)
-        case strokeRate(Int)
+        case primary(UUID)
+        case secondary(UUID)
+        case strokeRate(UUID)
         case notes
     }
 
@@ -52,12 +52,6 @@ struct LogWorkoutView: View {
                             get: { form.variable },
                             set: { form.setVariable($0) }
                         ))
-                        Stepper(value: Binding(
-                            get: { form.rows.count },
-                            set: { form.setIntervalCount($0) }
-                        ), in: 2...WorkoutForm.maxIntervals) {
-                            Text("\(form.rows.count) intervals")
-                        }
                     }
                 }
 
@@ -98,8 +92,20 @@ struct LogWorkoutView: View {
                     }
                 }
 
-                ForEach(form.activeRowIndices, id: \.self) { idx in
-                    intervalSection(index: idx)
+                ForEach(form.activeRowIndices.map { form.rows[$0].id }, id: \.self) { id in
+                    intervalSection(id: id)
+                }
+
+                if form.intervalsOn {
+                    Section {
+                        Button {
+                            focusedField = nil
+                            form.addInterval()
+                        } label: {
+                            Label("Add interval", systemImage: "plus.circle.fill")
+                        }
+                        .disabled(!form.canAddInterval)
+                    }
                 }
 
                 Section("Notes (optional)") {
@@ -155,35 +161,67 @@ struct LogWorkoutView: View {
         router.selectedTab = .dashboard
     }
 
+    /// Binding to one row by id, so removing a row can't leave a field
+    /// bound to a stale array index.
+    private func row(_ id: UUID) -> Binding<IntervalFormRow> {
+        Binding(
+            get: { form.rows.first { $0.id == id } ?? IntervalFormRow() },
+            set: { newValue in
+                if let i = form.rows.firstIndex(where: { $0.id == id }) {
+                    form.rows[i] = newValue
+                }
+            }
+        )
+    }
+
     @ViewBuilder
-    private func intervalSection(index: Int) -> some View {
-        Section(form.intervalsOn ? "Interval \(index + 1)" : "Workout") {
+    private func intervalSection(id: UUID) -> some View {
+        let index = form.rows.firstIndex { $0.id == id } ?? 0
+        let row = row(id)
+        Section {
             // Primary field — depends on workout type. In the shared
             // layout it lives once above the list instead.
             if form.layout != .uniform {
-                TextField(kind.primaryFieldLabel, text: $form.rows[index].primaryStr)
+                TextField(kind.primaryFieldLabel, text: row.primaryStr)
                     .keyboardType(kind.primaryKeyboard)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                    .focused($focusedField, equals: .primary(index))
+                    .focused($focusedField, equals: .primary(id))
             }
 
-            TextField(form.secondary.fieldLabel(for: kind),
-                      text: $form.rows[index].secondaryStr)
+            TextField(form.secondary.fieldLabel(for: kind), text: row.secondaryStr)
                 .keyboardType(form.secondary.keyboard(for: kind))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .focused($focusedField, equals: .secondary(index))
+                .focused($focusedField, equals: .secondary(id))
 
-            TextField("Stroke rate (optional, 10–60 spm)",
-                      text: $form.rows[index].strokeRateStr)
+            TextField("Stroke rate (optional, 10–60 spm)", text: row.strokeRateStr)
                 .keyboardType(.numberPad)
-                .focused($focusedField, equals: .strokeRate(index))
+                .focused($focusedField, equals: .strokeRate(id))
 
-            if let err = form.rows[index].error {
+            if let err = row.wrappedValue.error {
                 Text(err)
                     .font(.caption)
                     .foregroundStyle(.red)
+            }
+        } header: {
+            if form.intervalsOn {
+                HStack {
+                    Text("Interval \(index + 1)")
+                    Spacer()
+                    if index > 0 {
+                        Button(role: .destructive) {
+                            focusedField = nil
+                            form.removeInterval(id: id)
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .font(.title3)
+                        }
+                        .accessibilityLabel("Remove interval \(index + 1)")
+                    }
+                }
+            } else {
+                Text("Workout")
             }
         }
     }
