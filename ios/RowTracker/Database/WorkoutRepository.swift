@@ -17,15 +17,19 @@ struct WorkoutRepository {
         try db.writer.write { d in
             try d.execute(
                 sql: """
-                INSERT OR REPLACE INTO workouts (id, kind, date, notes)
-                VALUES (?, ?, ?, ?)
+                INSERT OR REPLACE INTO workouts
+                    (id, kind, date, notes, avg_hr, max_hr, effort)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                arguments: [
+                arguments: StatementArguments([
                     workout.id.uuidString,
                     workout.kind.rawValue,
                     workout.date.timeIntervalSince1970,
                     workout.notes,
-                ]
+                    workout.avgHR,
+                    workout.maxHR,
+                    workout.effort,
+                ] as [(any DatabaseValueConvertible)?])
             )
             // Replace existing intervals so a re-save stays consistent.
             try d.execute(
@@ -94,18 +98,31 @@ struct WorkoutRepository {
         let kind: String
         let date: Double
         let notes: String
+        let avgHR: Int?
+        let maxHR: Int?
+        let effort: Int?
+
+        static let columns = "id, kind, date, notes, avg_hr, max_hr, effort"
+
+        init(_ row: Row) {
+            id = row["id"]
+            kind = row["kind"]
+            date = row["date"]
+            notes = row["notes"]
+            avgHR = row["avg_hr"]
+            maxHR = row["max_hr"]
+            effort = row["effort"]
+        }
     }
 
     private static func loadAll(from d: Database) throws -> [Workout] {
         let headers = try Row
             .fetchAll(d, sql: """
-                SELECT id, kind, date, notes
+                SELECT \(Header.columns)
                 FROM workouts
                 ORDER BY date DESC
             """)
-            .map {
-                Header(id: $0["id"], kind: $0["kind"], date: $0["date"], notes: $0["notes"])
-            }
+            .map(Header.init)
 
         // One query for all intervals, then bucket by workout_id — cheaper than
         // N+1 trips for larger libraries.
@@ -126,10 +143,10 @@ struct WorkoutRepository {
     private static func fetchHeader(_ d: Database, id: String) throws -> Header? {
         guard let row = try Row.fetchOne(
             d,
-            sql: "SELECT id, kind, date, notes FROM workouts WHERE id = ?",
+            sql: "SELECT \(Header.columns) FROM workouts WHERE id = ?",
             arguments: [id]
         ) else { return nil }
-        return Header(id: row["id"], kind: row["kind"], date: row["date"], notes: row["notes"])
+        return Header(row)
     }
 
     private static func fetchIntervals(_ d: Database, workoutId: String) throws -> [Interval] {
@@ -161,7 +178,10 @@ struct WorkoutRepository {
             kind: WorkoutKind(rawValue: header.kind) ?? .timed,
             date: Date(timeIntervalSince1970: header.date),
             notes: header.notes,
-            intervals: intervals
+            intervals: intervals,
+            avgHR: header.avgHR,
+            maxHR: header.maxHR,
+            effort: header.effort
         )
     }
 }

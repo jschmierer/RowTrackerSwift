@@ -10,7 +10,7 @@ struct AppDatabase {
 
     init(_ writer: any DatabaseWriter) throws {
         self.writer = writer
-        try migrator.migrate(writer)
+        try Self.migrator.migrate(writer)
     }
 
     /// Points at Application Support/RowTracker/db.sqlite.
@@ -38,7 +38,10 @@ struct AppDatabase {
         return try AppDatabase(queue)
     }
 
-    private var migrator: DatabaseMigrator {
+    /// Internal (not private) so tests can migrate a database only up to an
+    /// older version and then upgrade it, the way a phone does on update.
+    /// Never edit a migration that has shipped: add a new one instead.
+    static var migrator: DatabaseMigrator {
         var m = DatabaseMigrator()
         m.registerMigration("v1_schema") { db in
             try db.execute(sql: """
@@ -63,6 +66,22 @@ struct AppDatabase {
         }
         m.registerMigration("v2_add_stroke_rate") { db in
             try db.execute(sql: "ALTER TABLE intervals ADD COLUMN stroke_rate INTEGER")
+        }
+        m.registerMigration("v3_add_heart_rate_and_effort") { db in
+            // Workout-level, all nullable: workouts saved before this
+            // version have no heart rate or effort and show a dash.
+            try db.execute(sql: """
+                ALTER TABLE workouts ADD COLUMN avg_hr INTEGER
+                    CHECK (avg_hr IS NULL OR avg_hr BETWEEN 30 AND 230)
+            """)
+            try db.execute(sql: """
+                ALTER TABLE workouts ADD COLUMN max_hr INTEGER
+                    CHECK (max_hr IS NULL OR max_hr BETWEEN 30 AND 230)
+            """)
+            try db.execute(sql: """
+                ALTER TABLE workouts ADD COLUMN effort INTEGER
+                    CHECK (effort IS NULL OR effort BETWEEN 0 AND 10)
+            """)
         }
         return m
     }

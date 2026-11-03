@@ -15,7 +15,7 @@ struct Interval: Identifiable, Codable, Hashable {
     /// Distance in meters. Optional: rest intervals like "10x0:30" have no distance.
     var distanceMeters: Double?
     /// Stroke rate in strokes per minute. Optional — not every workout
-    /// records it; the Log form doesn't capture it yet.
+    /// records it, and a blank field on the Log form saves as nil.
     var strokeRate: Int?
 
     init(id: UUID = UUID(),
@@ -33,6 +33,11 @@ struct Interval: Identifiable, Codable, Hashable {
         guard let d = distanceMeters, d > 0, durationSec > 0 else { return nil }
         return RowingMath.split(fromTime: durationSec, distance: d)
     }
+
+    /// Power in watts, derived from the split. Nil when there is no split.
+    var watts: Double? {
+        splitSec.flatMap(RowingMath.watts(fromSplit:))
+    }
 }
 
 struct Workout: Identifiable, Codable, Hashable {
@@ -41,17 +46,30 @@ struct Workout: Identifiable, Codable, Hashable {
     var date: Date
     var notes: String
     var intervals: [Interval]
+    /// Average heart rate for the whole workout (bpm). Nil when not recorded.
+    var avgHR: Int?
+    /// Maximum heart rate for the whole workout (bpm). Nil when not recorded.
+    var maxHR: Int?
+    /// Perceived effort, 0 (easy) to 10 (all-out). Nil for workouts saved
+    /// before effort was recorded.
+    var effort: Int?
 
     init(id: UUID = UUID(),
          kind: WorkoutKind,
          date: Date = Date(),
          notes: String = "",
-         intervals: [Interval] = []) {
+         intervals: [Interval] = [],
+         avgHR: Int? = nil,
+         maxHR: Int? = nil,
+         effort: Int? = nil) {
         self.id = id
         self.kind = kind
         self.date = date
         self.notes = notes
         self.intervals = intervals
+        self.avgHR = avgHR
+        self.maxHR = maxHR
+        self.effort = effort
     }
 
     /// Intervals that have both a duration and a positive distance.
