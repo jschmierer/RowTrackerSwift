@@ -8,6 +8,9 @@ struct WorkoutDetailView: View {
     /// "Saved" in the sheet shown right after logging, "Workout" otherwise.
     var navigationTitle = "Workout"
 
+    /// Split | Watts toggle; starts on Split.
+    @State private var pace: PaceMode = .split
+
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateStyle = .long
@@ -69,67 +72,66 @@ struct WorkoutDetailView: View {
 
     @ViewBuilder
     private var rowedSections: some View {
-            Section("Totals") {
-                LabeledContent("Total distance",
-                               value: Self.distanceString(workout.totalDistance))
-                LabeledContent("Total time",
-                               value: RowingMath.formatTime(workout.totalDuration))
-                LabeledContent("Average split",
-                               value: workout.averageSplit.map {
-                                   RowingMath.formatTime($0) + " /500m"
-                               } ?? "—")
-            }
-
-            Section(workout.intervals.count == 1 ? "Interval" : "Intervals") {
-                ForEach(Array(workout.intervals.enumerated()), id: \.element.id) { pair in
-                    IntervalDetailRow(index: pair.offset, interval: pair.element)
+        // One switch for every pace value on the screen.
+        Section {
+            Picker("Show pace as", selection: $pace) {
+                ForEach(PaceMode.allCases) { mode in
+                    Text(mode.label).tag(mode)
                 }
             }
-    }
-
-    static func distanceString(_ meters: Double) -> String {
-        if meters >= 10000 {
-            return String(format: "%.1f km", meters / 1000)
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("paceToggle")
         }
-        return "\(Int(meters)) m"
+
+        Section("Totals") {
+            LabeledContent("Total distance", value: DetailFormat.distance(workout.totalDistance))
+            LabeledContent("Total time", value: DetailFormat.time(workout.totalDuration))
+            LabeledContent(pace.averageLabel) {
+                Text(pace.format(split: workout.averageSplit))
+                    .accessibilityIdentifier("overallPace")
+            }
+        }
+
+        Section(workout.intervals.count == 1 ? "Interval" : "Intervals") {
+            ForEach(Array(workout.intervals.enumerated()), id: \.element.id) { pair in
+                IntervalDetailRow(index: pair.offset, interval: pair.element, pace: pace)
+            }
+        }
     }
 }
 
-private struct IntervalDetailRow: View {
+/// One interval: time, distance, split or watts, rate, and the rest after it.
+struct IntervalDetailRow: View {
     let index: Int
     let interval: Interval
+    let pace: PaceMode
+    /// Prefix for accessibility identifiers, so the same row can appear in
+    /// this workout's list and in the comparison lists.
+    var idPrefix = "interval"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Interval \(index + 1)")
                 .font(.subheadline)
                 .fontWeight(.medium)
-            // Two rows of three so five stats fit on a phone without
-            // squeezing the split.
             Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
                 GridRow {
-                    statColumn("Time", value: RowingMath.formatTime(interval.durationSec))
-                    statColumn("Distance",
-                               value: interval.distanceMeters.map {
-                                   WorkoutDetailView.distanceString($0)
-                               } ?? DetailFormat.missing)
-                    statColumn("Split",
-                               value: interval.splitSec.map {
-                                   RowingMath.formatTime($0) + " /500m"
-                               } ?? DetailFormat.missing)
+                    statColumn("Time", value: DetailFormat.time(interval.durationSec))
+                    statColumn("Distance", value: DetailFormat.distance(interval.distanceMeters))
+                    statColumn(pace.label, value: pace.format(split: interval.splitSec))
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("\(idPrefix)Pace.\(index + 1)")
                 }
                 GridRow {
-                    statColumn("Watts", value: DetailFormat.watts(interval.watts))
-                    statColumn("Rate",
-                               value: interval.strokeRate.map { "\($0) spm" }
-                                   ?? DetailFormat.missing)
+                    statColumn("Rate", value: DetailFormat.strokeRate(interval.strokeRate))
                     if let rest = interval.restSec {
-                        statColumn("Rest", value: RowingMath.formatTime(rest))
+                        statColumn("Rest after", value: DetailFormat.rest(rest))
                             .accessibilityElement(children: .combine)
-                            .accessibilityIdentifier("intervalRest.\(index + 1)")
+                            .accessibilityIdentifier("\(idPrefix)Rest.\(index + 1)")
                     } else {
                         Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
                     }
+                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
                 }
             }
         }
