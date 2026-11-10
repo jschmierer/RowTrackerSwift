@@ -169,3 +169,36 @@ struct WorkoutRepositoryHeartRateTests {
         #expect(try repo.count() == 0)
     }
 }
+
+@Suite("WorkoutRepository custom workouts and rest")
+struct WorkoutRepositoryCustomTests {
+    @Test("title and details round-trip; nil stays nil")
+    func titleDetailsRoundTrip() throws {
+        let repo = WorkoutRepository(try AppDatabase.inMemory())
+        let custom = Workout(kind: .custom, title: "Weights", details: "Squats 5x5")
+        let rowed = Workout(kind: .distance,
+                            intervals: [Interval(durationSec: 100, distanceMeters: 500)])
+        try repo.save(custom)
+        try repo.save(rowed)
+        let c = try #require(try repo.fetchOne(id: custom.id))
+        #expect(c.kind == .custom)
+        #expect(c.title == "Weights")
+        #expect(c.details == "Squats 5x5")
+        let r = try #require(try repo.fetchOne(id: rowed.id))
+        #expect(r.title == nil)
+        #expect(r.details == nil)
+    }
+
+    @Test("rest round-trips through all() and fetchOne()")
+    func restRoundTrip() throws {
+        let repo = WorkoutRepository(try AppDatabase.inMemory())
+        let w = Workout(kind: .distance, intervals: [
+            Interval(durationSec: 100, distanceMeters: 500, restSec: 60),
+            Interval(durationSec: 101, distanceMeters: 500, restSec: 90.5),
+            Interval(durationSec: 102, distanceMeters: 500),
+        ])
+        try repo.save(w)
+        #expect(try repo.fetchOne(id: w.id)?.intervals.map(\.restSec) == [60, 90.5, nil])
+        #expect(try repo.all().first?.intervals.map(\.restSec) == [60, 90.5, nil])
+    }
+}

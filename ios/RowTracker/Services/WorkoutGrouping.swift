@@ -28,6 +28,9 @@ enum WorkoutGrouping {
             guard total > 0 else { return nil }
             let bucket = Int((total / timeBucketSeconds).rounded()) * Int(timeBucketSeconds)
             return WorkoutGroupKey(kind: .timed, bucketedTotal: bucket)
+        case .custom:
+            // No split to chart.
+            return nil
         }
     }
 
@@ -70,7 +73,7 @@ struct WorkoutGroupKey: Hashable, Identifiable {
                 return String(format: "%.1f km", Double(bucketedTotal) / 1000)
             }
             return "\(bucketedTotal) m"
-        case .timed:
+        case .timed, .custom:
             let totalMinutes = bucketedTotal / 60
             if totalMinutes >= 60 {
                 let hours = totalMinutes / 60

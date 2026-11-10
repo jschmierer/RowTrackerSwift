@@ -305,7 +305,7 @@ struct LogWorkoutView: View {
 private extension WorkoutKind {
     var primaryFieldLabel: String {
         switch self {
-        case .timed: return "Time (M:SS or H:MM:SS)"
+        case .timed, .custom: return "Time (M:SS or H:MM:SS)"
         case .distance: return "Distance (meters)"
         }
     }
@@ -313,21 +313,21 @@ private extension WorkoutKind {
     /// Section title for the shared field ("Time per interval").
     var sharedPrimaryTitle: String {
         switch self {
-        case .timed: return "Time per interval"
+        case .timed, .custom: return "Time per interval"
         case .distance: return "Distance per interval"
         }
     }
 
     var sharedPrimaryLabel: String {
         switch self {
-        case .timed: return "Time per interval (M:SS)"
+        case .timed, .custom: return "Time per interval (M:SS)"
         case .distance: return "Distance per interval (meters)"
         }
     }
 
     var primaryKeyboard: UIKeyboardType {
         switch self {
-        case .timed: return .numbersAndPunctuation
+        case .timed, .custom: return .numbersAndPunctuation
         case .distance: return .decimalPad
         }
     }
@@ -340,7 +340,7 @@ private extension SecondaryField {
         switch (self, kind) {
         case (.split, _): return "Split"
         case (.otherQuantity, .timed): return "Distance"
-        case (.otherQuantity, .distance): return "Time"
+        case (.otherQuantity, .distance), (.otherQuantity, .custom): return "Time"
         case (.watts, _): return "Watts"
         }
     }
@@ -350,7 +350,7 @@ private extension SecondaryField {
         switch (self, kind) {
         case (.split, _): return "Split per 500 m (M:SS)"
         case (.otherQuantity, .timed): return "Distance (meters)"
-        case (.otherQuantity, .distance): return "Time (M:SS or H:MM:SS)"
+        case (.otherQuantity, .distance), (.otherQuantity, .custom): return "Time (M:SS or H:MM:SS)"
         case (.watts, _): return "Average watts"
         }
     }
@@ -359,7 +359,7 @@ private extension SecondaryField {
         switch (self, kind) {
         case (.split, _): return .numbersAndPunctuation
         case (.otherQuantity, .timed): return .decimalPad
-        case (.otherQuantity, .distance): return .numbersAndPunctuation
+        case (.otherQuantity, .distance), (.otherQuantity, .custom): return .numbersAndPunctuation
         case (.watts, _): return .decimalPad
         }
     }

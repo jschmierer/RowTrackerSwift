@@ -52,7 +52,7 @@ struct WorkoutRow: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                 Spacer()
-                Text(workout.kind == .timed ? "Timed" : "Distance")
+                Text(workout.kind.displayName)
                     .font(.caption)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 2)

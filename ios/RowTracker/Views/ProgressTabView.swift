@@ -136,15 +136,8 @@ struct ProgressTabView: View {
     }
 
     private var weeklyPoints: [WeekPoint] {
-        let calendar = Calendar.current
-        var buckets: [Date: Double] = [:]
-        for w in store.workouts {
-            let week = calendar.dateInterval(of: .weekOfYear, for: w.date)?.start ?? w.date
-            buckets[week, default: 0] += w.totalDistance
-        }
-        return buckets
-            .map { WeekPoint(weekStart: $0.key, meters: $0.value) }
-            .sorted { $0.weekStart < $1.weekStart }
+        WorkoutStats.weeklyMeters(store.workouts)
+            .map { WeekPoint(weekStart: $0.weekStart, meters: $0.meters) }
     }
 
     @ViewBuilder

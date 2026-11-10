@@ -83,6 +83,40 @@ struct AppDatabase {
                     CHECK (effort IS NULL OR effort BETWEEN 0 AND 10)
             """)
         }
+        m.registerMigration("v4_custom_workouts_and_rest") { db in
+            // SQLite can't change a CHECK constraint in place, so rebuild
+            // `workouts` to allow 'custom': create the new table, copy every
+            // row, drop the old one, rename. GRDB runs migrations with
+            // foreign keys off (checked before commit), so dropping the old
+            // table does not cascade-delete any intervals.
+            try db.execute(sql: """
+                CREATE TABLE workouts_v4 (
+                    id      TEXT PRIMARY KEY NOT NULL,
+                    kind    TEXT NOT NULL CHECK (kind IN ('timed','distance','custom')),
+                    date    REAL NOT NULL,
+                    notes   TEXT NOT NULL DEFAULT '',
+                    avg_hr  INTEGER CHECK (avg_hr IS NULL OR avg_hr BETWEEN 30 AND 230),
+                    max_hr  INTEGER CHECK (max_hr IS NULL OR max_hr BETWEEN 30 AND 230),
+                    effort  INTEGER CHECK (effort IS NULL OR effort BETWEEN 0 AND 10),
+                    title   TEXT,
+                    details TEXT
+                )
+            """)
+            try db.execute(sql: """
+                INSERT INTO workouts_v4 (id, kind, date, notes, avg_hr, max_hr, effort)
+                SELECT id, kind, date, notes, avg_hr, max_hr, effort FROM workouts
+            """)
+            try db.execute(sql: "DROP TABLE workouts")
+            try db.execute(sql: "ALTER TABLE workouts_v4 RENAME TO workouts")
+            try db.execute(sql: "CREATE INDEX idx_workouts_date ON workouts(date DESC)")
+
+            // Rest after an interval, in seconds. Nullable: optional, and
+            // older intervals have none.
+            try db.execute(sql: """
+                ALTER TABLE intervals ADD COLUMN rest_seconds REAL
+                    CHECK (rest_seconds IS NULL OR rest_seconds >= 0)
+            """)
+        }
         return m
     }
 }

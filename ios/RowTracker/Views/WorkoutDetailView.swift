@@ -16,8 +16,7 @@ struct WorkoutDetailView: View {
         List {
             Section("Workout") {
                 LabeledContent("Date", value: Self.dateFormatter.string(from: workout.date))
-                LabeledContent("Type",
-                               value: workout.kind == .timed ? "Timed" : "Distance")
+                LabeledContent("Type", value: workout.kind.displayName)
                 LabeledContent("Average HR", value: DetailFormat.heartRate(workout.avgHR))
                 LabeledContent("Max HR", value: DetailFormat.heartRate(workout.maxHR))
                 LabeledContent("Effort", value: DetailFormat.effort(workout.effort))

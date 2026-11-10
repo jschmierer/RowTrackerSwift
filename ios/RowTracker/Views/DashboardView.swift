@@ -4,15 +4,11 @@ struct DashboardView: View {
     @Environment(WorkoutStore.self) private var store
 
     private var thisWeekMeters: Double {
-        let start = Calendar.current.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
-        return store.workouts
-            .filter { $0.date >= start }
-            .map(\.totalDistance)
-            .reduce(0, +)
+        WorkoutStats.thisWeekMeters(store.workouts)
     }
 
     private var totalMeters: Double {
-        store.workouts.map(\.totalDistance).reduce(0, +)
+        WorkoutStats.totalMeters(store.workouts)
     }
 
     private var recent: [Workout] {
@@ -74,13 +70,6 @@ struct DashboardView: View {
     }
 
     private var bestTwoK: String {
-        let candidates = store.workouts.filter { workout in
-            // Treat a single-interval workout at ~2000m as a 2k test.
-            workout.intervals.count == 1
-                && (1950...2050).contains(workout.intervals[0].distanceMeters ?? 0)
-        }
-        let fastest = candidates.min { ($0.totalDuration) < ($1.totalDuration) }
-        guard let fastest else { return "—" }
-        return RowingMath.formatTime(fastest.totalDuration)
+        WorkoutStats.bestTwoK(store.workouts).map(RowingMath.formatTime) ?? "—"
     }
 }

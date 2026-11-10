@@ -117,6 +117,8 @@ struct WorkoutForm {
                 return String(Int((interval.distanceMeters ?? 0).rounded()))
             case .distance:
                 return RowingMath.formatTime(interval.durationSec)
+            case .custom:
+                return nil
             }
         case .split, .watts:
             return Self.format(split: split, as: new)
@@ -341,6 +343,9 @@ struct IntervalFormRow: Identifiable {
             // Distance + time
             let time = try Self.parsePositiveTime(secondaryText, name: "Time")
             return Interval(durationSec: time, distanceMeters: primary, strokeRate: strokeRate)
+
+        case (.custom, _):
+            throw DeriveError.message("Custom workouts don't have intervals.")
         }
     }
 
@@ -370,6 +375,8 @@ struct IntervalFormRow: Identifiable {
         switch kind {
         case .timed: return try parsePositiveTime(text, name: "Time")
         case .distance: return try parseDistance(text)
+        case .custom:
+            throw DeriveError.message("Custom workouts don't have intervals.")
         }
     }
 
@@ -418,6 +425,7 @@ extension WorkoutKind {
         switch self {
         case .timed: return "time"
         case .distance: return "distance"
+        case .custom: return "title"
         }
     }
 }
@@ -429,6 +437,7 @@ extension SecondaryField {
         case (.split, _): return "split"
         case (.otherQuantity, .timed): return "distance"
         case (.otherQuantity, .distance): return "time"
+        case (.otherQuantity, .custom): return "value"
         case (.watts, _): return "watts"
         }
     }

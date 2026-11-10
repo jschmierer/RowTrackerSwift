@@ -18,8 +18,8 @@ struct WorkoutRepository {
             try d.execute(
                 sql: """
                 INSERT OR REPLACE INTO workouts
-                    (id, kind, date, notes, avg_hr, max_hr, effort)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (id, kind, date, notes, avg_hr, max_hr, effort, title, details)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 arguments: StatementArguments([
                     workout.id.uuidString,
@@ -29,6 +29,8 @@ struct WorkoutRepository {
                     workout.avgHR,
                     workout.maxHR,
                     workout.effort,
+                    workout.title,
+                    workout.details,
                 ] as [(any DatabaseValueConvertible)?])
             )
             // Replace existing intervals so a re-save stays consistent.
@@ -40,8 +42,9 @@ struct WorkoutRepository {
                 try d.execute(
                     sql: """
                     INSERT INTO intervals
-                        (id, workout_id, position, duration_sec, distance_meters, stroke_rate)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                        (id, workout_id, position, duration_sec, distance_meters,
+                         stroke_rate, rest_seconds)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                     arguments: StatementArguments([
                         interval.id.uuidString,
@@ -50,6 +53,7 @@ struct WorkoutRepository {
                         interval.durationSec,
                         interval.distanceMeters,
                         interval.strokeRate,
+                        interval.restSec,
                     ] as [(any DatabaseValueConvertible)?])
                 )
             }
@@ -101,8 +105,10 @@ struct WorkoutRepository {
         let avgHR: Int?
         let maxHR: Int?
         let effort: Int?
+        let title: String?
+        let details: String?
 
-        static let columns = "id, kind, date, notes, avg_hr, max_hr, effort"
+        static let columns = "id, kind, date, notes, avg_hr, max_hr, effort, title, details"
 
         init(_ row: Row) {
             id = row["id"]
@@ -112,6 +118,8 @@ struct WorkoutRepository {
             avgHR = row["avg_hr"]
             maxHR = row["max_hr"]
             effort = row["effort"]
+            title = row["title"]
+            details = row["details"]
         }
     }
 
@@ -127,7 +135,8 @@ struct WorkoutRepository {
         // One query for all intervals, then bucket by workout_id — cheaper than
         // N+1 trips for larger libraries.
         let intervalRows = try Row.fetchAll(d, sql: """
-            SELECT id, workout_id, position, duration_sec, distance_meters, stroke_rate
+            SELECT id, workout_id, position, duration_sec, distance_meters, stroke_rate,
+                   rest_seconds
             FROM intervals
             ORDER BY workout_id, position
         """)
@@ -153,7 +162,8 @@ struct WorkoutRepository {
         try Row.fetchAll(
             d,
             sql: """
-                SELECT id, position, duration_sec, distance_meters, stroke_rate
+                SELECT id, position, duration_sec, distance_meters, stroke_rate,
+                       rest_seconds
                 FROM intervals
                 WHERE workout_id = ?
                 ORDER BY position
@@ -166,10 +176,12 @@ struct WorkoutRepository {
         let id = UUID(uuidString: row["id"]) ?? UUID()
         let distance: Double? = row["distance_meters"]
         let strokeRate: Int? = row["stroke_rate"]
+        let rest: Double? = row["rest_seconds"]
         return Interval(id: id,
                         durationSec: row["duration_sec"],
                         distanceMeters: distance,
-                        strokeRate: strokeRate)
+                        strokeRate: strokeRate,
+                        restSec: rest)
     }
 
     private static func workout(from header: Header, intervals: [Interval]) -> Workout {
@@ -181,7 +193,9 @@ struct WorkoutRepository {
             intervals: intervals,
             avgHR: header.avgHR,
             maxHR: header.maxHR,
-            effort: header.effort
+            effort: header.effort,
+            title: header.title,
+            details: header.details
         )
     }
 }
