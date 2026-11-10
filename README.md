@@ -6,16 +6,25 @@ list, and seeing progress over time.
 Four tabs:
 
 - **Dashboard** — total meters, this-week meters, workout count, best 2k.
-- **Log** — date, workout type (timed or distance), optional intervals
-  (shared or variable per-interval values), then the time or distance plus
-  one of split / the other quantity / watts; the rest is derived. Optional
-  stroke rate, workout heart rate (average and max), effort 0–10, and notes.
-- **History** — workouts newest-first, swipe to delete.
+- **Log** — date, workout type (Time, Distance, or Custom), optional
+  intervals (shared or variable per-interval values) with optional rest
+  between them (one shared value or one per interval; never counted in
+  totals), then the time or distance plus one of split / the other
+  quantity / watts; the others are derived. Optional stroke rate, workout
+  heart rate (average and max), effort 0–10, and notes. Custom workouts
+  are a title and free-text details. "Share workout" saves and opens the
+  share sheet.
+- **History** — workouts newest-first, swipe to delete. Tapping a workout
+  (here or on the Dashboard) opens the detail screen: generated title
+  ("3x500m"), header, a Split | Watts toggle, overall stats, intervals,
+  and a comparison with the previous and best of the same workout plus a
+  graph.
 - **Progress** — Swift Charts line chart of average split over time (y-axis
   flipped so up means faster) and a bar chart of weekly meters.
 
-On first launch with an empty database the app seeds about 15 sample workouts
-so the charts aren't empty. Workouts persist in a local SQLite database via
+Debug builds seed about 15 sample workouts into an empty database so the
+charts aren't empty (Release builds start empty). UI tests launch with
+`-uiTesting`, which uses a fresh in-memory database. Workouts persist in a local SQLite database via
 GRDB.
 
 ## Relationship to the Python original
