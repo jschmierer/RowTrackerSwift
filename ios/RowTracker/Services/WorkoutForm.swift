@@ -21,6 +21,13 @@ struct WorkoutForm {
     var sharedPrimaryError: String?
     /// What the rower enters besides the primary value, for every interval.
     private(set) var secondary: SecondaryField = .split
+    /// Intervals only. Off: one shared "Rest per interval" value
+    /// (`sharedRestStr`). On: a rest field after each interval but the
+    /// last. Defaults to match Variable (off for shared intervals, on for
+    /// variable ones) whenever Intervals or Variable is switched.
+    private(set) var variableRest = false
+    var sharedRestStr: String = ""
+    var sharedRestError: String?
     /// `sharedPrimaryStr` as it was when the shared layout was entered, so
     /// leaving it can tell whether the rower changed it.
     private var sharedPrimaryBaseline: String = ""
@@ -75,13 +82,47 @@ struct WorkoutForm {
             rows.append(IntervalFormRow())
         }
         carryPrimaryValues(from: old, to: layout)
+        if on { setVariableRest(variable) }
     }
 
     mutating func setVariable(_ on: Bool) {
         let old = layout
         variable = on
         carryPrimaryValues(from: old, to: layout)
+        setVariableRest(on)
     }
+
+    /// Switches between one shared rest and a rest after each interval,
+    /// keeping what was typed: per-interval rests that are blank take the
+    /// shared value, and a blank shared value takes the first one typed.
+    mutating func setVariableRest(_ on: Bool) {
+        guard on != variableRest else { return }
+        variableRest = on
+        let shared = sharedRestStr.trimmingCharacters(in: .whitespaces)
+        if on {
+            for i in rows.indices where rows[i].restStr.trimmingCharacters(in: .whitespaces).isEmpty {
+                rows[i].restStr = sharedRestStr
+            }
+        } else if shared.isEmpty,
+                  let first = rows.dropLast().first(where: {
+                      !$0.restStr.trimmingCharacters(in: .whitespaces).isEmpty
+                  }) {
+            sharedRestStr = first.restStr
+        }
+        sharedRestError = nil
+        for i in rows.indices { rows[i].restError = nil }
+    }
+
+    /// Rows that show their own rest field: every interval but the last,
+    /// with Intervals and Variable rest on. (There's no rest after the
+    /// last interval.)
+    var restRowIndices: Range<Int> {
+        guard intervalsOn, variableRest, rows.count > 1 else { return 0..<0 }
+        return 0..<(rows.count - 1)
+    }
+
+    /// Whether the single "Rest per interval" field is shown.
+    var showsSharedRest: Bool { intervalsOn && !variableRest }
 
     /// Changes the secondary metric. Values already typed are converted to
     /// the new metric where that's possible (split and watts always; the
@@ -229,9 +270,14 @@ struct WorkoutForm {
                 hadError = true
             }
         }
+        let rests = validatedRests()
+        if rests == nil { hadError = true }
         let heartRate = validatedHeartRate()
 
-        guard !hadError, let heartRate else { return nil }
+        guard !hadError, let heartRate, let rests else { return nil }
+        for i in intervals.indices where i < rests.count {
+            intervals[i].restSec = rests[i]
+        }
         return Workout(kind: kind,
                        date: RowingDate.startOfLocalDay(for: date),
                        notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -239,6 +285,51 @@ struct WorkoutForm {
                        avgHR: heartRate.avg,
                        maxHR: heartRate.max,
                        effort: effort)
+    }
+
+    /// Rest after each active row (nil = none), or nil when a rest value
+    /// is invalid (the message is stored on the field). The last interval
+    /// never has rest, and a single piece has none at all.
+    private mutating func validatedRests() -> [TimeInterval?]? {
+        sharedRestError = nil
+        for i in rows.indices { rows[i].restError = nil }
+        guard intervalsOn else { return [] }
+
+        var rests = [TimeInterval?](repeating: nil, count: rows.count)
+        if variableRest {
+            var ok = true
+            for i in restRowIndices {
+                do {
+                    rests[i] = try Self.parseRest(rows[i].restStr)
+                } catch {
+                    rows[i].restError = (error as? LocalizedError)?.errorDescription
+                        ?? error.localizedDescription
+                    ok = false
+                }
+            }
+            return ok ? rests : nil
+        }
+        do {
+            let shared = try Self.parseRest(sharedRestStr)
+            for i in rows.indices.dropLast() { rests[i] = shared }
+            return rests
+        } catch {
+            sharedRestError = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
+            return nil
+        }
+    }
+
+    /// Rest is optional: blank (or zero) means none. Otherwise a time
+    /// entered like any other ("1:00", "90", "0:45").
+    static func parseRest(_ text: String) throws -> TimeInterval? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        guard let seconds = try? RowingMath.parseTime(trimmed) else {
+            throw IntervalFormRow.DeriveError.message(
+                "Rest must be a time like 1:00 or 0:45, or left blank.")
+        }
+        return seconds > 0 ? seconds : nil
     }
 
     /// A Custom workout is a title, optional details, and the fields every
@@ -337,6 +428,9 @@ struct IntervalFormRow: Identifiable {
     /// Stroke rate (spm). Optional on the form — blank saves as nil.
     var strokeRateStr: String = ""
     var error: String?
+    /// Rest after this interval (Variable rest on). Optional.
+    var restStr: String = ""
+    var restError: String?
 
     /// Accepted stroke-rate range (strokes per minute).
     static let strokeRateRange = 10...60

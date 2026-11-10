@@ -105,7 +105,13 @@ private struct IntervalDetailRow: View {
                     statColumn("Rate",
                                value: interval.strokeRate.map { "\($0) spm" }
                                    ?? DetailFormat.missing)
-                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                    if let rest = interval.restSec {
+                        statColumn("Rest", value: RowingMath.formatTime(rest))
+                            .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("intervalRest.\(index + 1)")
+                    } else {
+                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                    }
                 }
             }
         }

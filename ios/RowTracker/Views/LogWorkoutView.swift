@@ -19,6 +19,8 @@ struct LogWorkoutView: View {
         case notes
         case customTitle
         case customDetails
+        case sharedRest
+        case rest(UUID)
     }
 
     private var kind: WorkoutKind { form.kind }
@@ -177,32 +179,62 @@ struct LogWorkoutView: View {
         } header: {
             Text("Also enter")
         } footer: {
+            // "the others", not "the rest": rest means time off here.
             Text(kind == .timed
-                 ? "Time plus one of these; the rest is worked out."
-                 : "Distance plus one of these; the rest is worked out.")
+                 ? "Time plus one of these; the others are worked out."
+                 : "Distance plus one of these; the others are worked out.")
         }
 
-        if form.layout == .uniform {
+        if form.intervalsOn {
+            // Mockup order: Variable rest, the shared time/distance (shared
+            // intervals only), then the shared rest (Variable rest off).
             Section {
-                TextField(kind.sharedPrimaryLabel, text: $form.sharedPrimaryStr)
-                    .keyboardType(kind.primaryKeyboard)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .focused($focusedField, equals: .sharedPrimary)
-                if let err = form.sharedPrimaryError {
-                    Text(err)
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                Toggle("Variable rest", isOn: Binding(
+                    get: { form.variableRest },
+                    set: { form.setVariableRest($0) }
+                ))
+                .accessibilityIdentifier("variableRestToggle")
+
+                if form.layout == .uniform {
+                    TextField(kind.sharedPrimaryLabel, text: $form.sharedPrimaryStr)
+                        .keyboardType(kind.primaryKeyboard)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .focused($focusedField, equals: .sharedPrimary)
+                        .accessibilityIdentifier("sharedPrimaryField")
+                    if let err = form.sharedPrimaryError {
+                        Text(err)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+
+                if form.showsSharedRest {
+                    TextField("Rest per interval (M:SS, optional)", text: $form.sharedRestStr)
+                        .keyboardType(.numbersAndPunctuation)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .focused($focusedField, equals: .sharedRest)
+                        .accessibilityIdentifier("sharedRestField")
+                    if let err = form.sharedRestError {
+                        Text(err)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
                 }
             } header: {
-                Text(kind.sharedPrimaryTitle)
+                Text(form.layout == .uniform ? kind.sharedPrimaryTitle : "Rest")
             } footer: {
-                Text("The same for every interval. Turn on Variable to set each one.")
+                Text(perIntervalFooter)
             }
         }
 
         ForEach(form.activeRowIndices.map { form.rows[$0].id }, id: \.self) { id in
             intervalSection(id: id)
+            if let index = form.rows.firstIndex(where: { $0.id == id }),
+               form.restRowIndices.contains(index) {
+                restSection(id: id, index: index)
+            }
         }
 
         if form.intervalsOn {
@@ -262,6 +294,37 @@ struct LogWorkoutView: View {
                 }
             }
         )
+    }
+
+    private var perIntervalFooter: String {
+        let rest = form.variableRest
+            ? "Enter the rest after each interval."
+            : "Rest is the same after every interval but the last."
+        let shared = form.layout == .uniform
+            ? "Time or distance is the same for every interval; turn on Variable to set each one. "
+            : ""
+        return shared + rest + " Rest isn't counted in time, distance, or splits."
+    }
+
+    /// The optional rest between interval `index` and the next one.
+    @ViewBuilder
+    private func restSection(id: UUID, index: Int) -> some View {
+        let row = row(id)
+        Section {
+            TextField("Rest (M:SS, optional)", text: row.restStr)
+                .keyboardType(.numbersAndPunctuation)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused($focusedField, equals: .rest(id))
+                .accessibilityIdentifier("restField.\(index + 1)")
+            if let err = row.wrappedValue.restError {
+                Text(err)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        } header: {
+            Text("Rest after interval \(index + 1)")
+        }
     }
 
     @ViewBuilder
