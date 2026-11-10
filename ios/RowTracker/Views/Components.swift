@@ -58,15 +58,28 @@ struct WorkoutRow: View {
                     .padding(.vertical, 2)
                     .background(Color.accentColor.opacity(0.15), in: Capsule())
             }
-            HStack(spacing: 12) {
-                Text("\(Int(workout.totalDistance)) m")
-                Text(RowingMath.formatTime(workout.totalDuration))
-                if let avg = workout.averageSplit {
-                    Text(RowingMath.formatTime(avg) + " /500m")
+            if workout.kind == .custom {
+                // No meters or split: show what the rower called it.
+                Text(workout.title ?? WorkoutKind.custom.displayName)
+                    .font(.footnote)
+                    .fontWeight(.medium)
+                if let details = workout.details {
+                    Text(details)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
+            } else {
+                HStack(spacing: 12) {
+                    Text("\(Int(workout.totalDistance)) m")
+                    Text(RowingMath.formatTime(workout.totalDuration))
+                    if let avg = workout.averageSplit {
+                        Text(RowingMath.formatTime(avg) + " /500m")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .font(.footnote)
             }
-            .font(.footnote)
             if !workout.notes.isEmpty {
                 Text(workout.notes)
                     .font(.caption)

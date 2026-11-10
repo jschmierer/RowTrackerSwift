@@ -17,6 +17,8 @@ struct LogWorkoutView: View {
         case avgHR
         case maxHR
         case notes
+        case customTitle
+        case customDetails
     }
 
     private var kind: WorkoutKind { form.kind }
@@ -33,84 +35,21 @@ struct LogWorkoutView: View {
 
                 Section("Workout type") {
                     Picker("Type", selection: $form.kind) {
-                        Text("Timed").tag(WorkoutKind.timed)
-                        Text("Distance").tag(WorkoutKind.distance)
+                        ForEach(WorkoutKind.allCases, id: \.self) { k in
+                            Text(k.displayName).tag(k)
+                        }
                     }
                     .pickerStyle(.segmented)
-                    Text(kind == .timed
-                         ? "Row for a given time (e.g. 20 minutes), log how far you went."
-                         : "Row for a given distance (e.g. 2000 m), log how long it took.")
+                    .accessibilityIdentifier("workoutTypePicker")
+                    Text(kind.typeCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
-                Section {
-                    Toggle("Intervals", isOn: Binding(
-                        get: { form.intervalsOn },
-                        set: { form.setIntervalsOn($0) }
-                    ))
-                    .accessibilityIdentifier("intervalsToggle")
-                    if form.intervalsOn {
-                        Toggle("Variable", isOn: Binding(
-                            get: { form.variable },
-                            set: { form.setVariable($0) }
-                        ))
-                        .accessibilityIdentifier("variableToggle")
-                    }
-                }
-
-                Section {
-                    Picker("Also enter", selection: Binding(
-                        get: { form.secondary },
-                        set: { form.setSecondary($0) }
-                    )) {
-                        ForEach(SecondaryField.allCases, id: \.self) { opt in
-                            Text(opt.label(for: kind)).tag(opt)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                } header: {
-                    Text("Also enter")
-                } footer: {
-                    Text(kind == .timed
-                         ? "Time plus one of these; the rest is worked out."
-                         : "Distance plus one of these; the rest is worked out.")
-                }
-
-                if form.layout == .uniform {
-                    Section {
-                        TextField(kind.sharedPrimaryLabel, text: $form.sharedPrimaryStr)
-                            .keyboardType(kind.primaryKeyboard)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .focused($focusedField, equals: .sharedPrimary)
-                        if let err = form.sharedPrimaryError {
-                            Text(err)
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                        }
-                    } header: {
-                        Text(kind.sharedPrimaryTitle)
-                    } footer: {
-                        Text("The same for every interval. Turn on Variable to set each one.")
-                    }
-                }
-
-                ForEach(form.activeRowIndices.map { form.rows[$0].id }, id: \.self) { id in
-                    intervalSection(id: id)
-                }
-
-                if form.intervalsOn {
-                    Section {
-                        Button {
-                            focusedField = nil
-                            form.addInterval()
-                        } label: {
-                            Label("Add interval", systemImage: "plus.circle.fill")
-                        }
-                        .disabled(!form.canAddInterval)
-                        .accessibilityIdentifier("addIntervalButton")
-                    }
+                if kind == .custom {
+                    customSections
+                } else {
+                    intervalSections
                 }
 
                 Section {
@@ -194,8 +133,7 @@ struct LogWorkoutView: View {
             }
             .sheet(item: $justSaved) { saved in
                 NavigationStack {
-                    WorkoutDetailView(workout: saved)
-                        .navigationTitle("Saved")
+                    WorkoutDetailView(workout: saved, navigationTitle: "Saved")
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
                                 Button("Done") { finishSave() }
@@ -204,6 +142,106 @@ struct LogWorkoutView: View {
                         }
                 }
             }
+        }
+    }
+
+    /// Time and Distance: the interval toggles, the "also enter" metric,
+    /// and the interval rows.
+    @ViewBuilder
+    private var intervalSections: some View {
+        Section {
+            Toggle("Intervals", isOn: Binding(
+                get: { form.intervalsOn },
+                set: { form.setIntervalsOn($0) }
+            ))
+            .accessibilityIdentifier("intervalsToggle")
+            if form.intervalsOn {
+                Toggle("Variable", isOn: Binding(
+                    get: { form.variable },
+                    set: { form.setVariable($0) }
+                ))
+                .accessibilityIdentifier("variableToggle")
+            }
+        }
+
+        Section {
+            Picker("Also enter", selection: Binding(
+                get: { form.secondary },
+                set: { form.setSecondary($0) }
+            )) {
+                ForEach(SecondaryField.allCases, id: \.self) { opt in
+                    Text(opt.label(for: kind)).tag(opt)
+                }
+            }
+            .pickerStyle(.segmented)
+        } header: {
+            Text("Also enter")
+        } footer: {
+            Text(kind == .timed
+                 ? "Time plus one of these; the rest is worked out."
+                 : "Distance plus one of these; the rest is worked out.")
+        }
+
+        if form.layout == .uniform {
+            Section {
+                TextField(kind.sharedPrimaryLabel, text: $form.sharedPrimaryStr)
+                    .keyboardType(kind.primaryKeyboard)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($focusedField, equals: .sharedPrimary)
+                if let err = form.sharedPrimaryError {
+                    Text(err)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            } header: {
+                Text(kind.sharedPrimaryTitle)
+            } footer: {
+                Text("The same for every interval. Turn on Variable to set each one.")
+            }
+        }
+
+        ForEach(form.activeRowIndices.map { form.rows[$0].id }, id: \.self) { id in
+            intervalSection(id: id)
+        }
+
+        if form.intervalsOn {
+            Section {
+                Button {
+                    focusedField = nil
+                    form.addInterval()
+                } label: {
+                    Label("Add interval", systemImage: "plus.circle.fill")
+                }
+                .disabled(!form.canAddInterval)
+                .accessibilityIdentifier("addIntervalButton")
+            }
+        }
+    }
+
+    /// Custom: a required title and free-text details, nothing else.
+    @ViewBuilder
+    private var customSections: some View {
+        Section {
+            TextField("Workout title", text: $form.customTitle)
+                .focused($focusedField, equals: .customTitle)
+                .accessibilityIdentifier("customTitleField")
+            if let err = form.customTitleError {
+                Text(err)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("customTitleError")
+            }
+        } header: {
+            Text("Workout title")
+        }
+
+        Section("Details") {
+            TextField("What did you do? Sets, distance, pace (optional)",
+                      text: $form.customDetails, axis: .vertical)
+                .lineLimit(3...10)
+                .focused($focusedField, equals: .customDetails)
+                .accessibilityIdentifier("customDetailsField")
         }
     }
 
@@ -303,6 +341,14 @@ struct LogWorkoutView: View {
 // MARK: - WorkoutKind UI helpers
 
 private extension WorkoutKind {
+    var typeCaption: String {
+        switch self {
+        case .timed: return "Row for a given time (e.g. 20 minutes), log how far you went."
+        case .distance: return "Row for a given distance (e.g. 2000 m), log how long it took."
+        case .custom: return "Anything else: a bike, a run, weights. Give it a title and describe it."
+        }
+    }
+
     var primaryFieldLabel: String {
         switch self {
         case .timed, .custom: return "Time (M:SS or H:MM:SS)"

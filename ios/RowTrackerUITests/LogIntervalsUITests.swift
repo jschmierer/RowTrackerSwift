@@ -8,6 +8,7 @@ final class LogIntervalsUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
+        app.launchArguments = ["-uiTesting"]
         app.launch()
         app.tabBars.buttons["Log"].tap()
         XCTAssertTrue(app.navigationBars["Log Workout"].waitForExistence(timeout: 5))

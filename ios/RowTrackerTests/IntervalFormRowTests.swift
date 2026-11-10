@@ -592,3 +592,84 @@ struct EffortTests {
         #expect(form.effort == 0)
     }
 }
+
+@Suite("Custom workout validation")
+struct CustomWorkoutFormTests {
+    @Test("a blank or whitespace title is rejected with a friendly message")
+    func titleRequired() {
+        for blank in ["", "   ", "\n\t"] {
+            var form = WorkoutForm()
+            form.kind = .custom
+            form.customTitle = blank
+            #expect(form.makeWorkout() == nil)
+            #expect(form.customTitleError?.contains("Give your custom workout a title") == true)
+        }
+    }
+
+    @Test("a title over the limit is rejected")
+    func titleTooLong() {
+        var form = WorkoutForm()
+        form.kind = .custom
+        form.customTitle = String(repeating: "x", count: WorkoutForm.customTitleMaxLength + 1)
+        #expect(form.makeWorkout() == nil)
+        #expect(form.customTitleError?.contains("characters or fewer") == true)
+    }
+
+    @Test("a valid custom workout ignores interval fields and saves title and details")
+    func validCustom() throws {
+        var form = WorkoutForm()
+        // Junk left in interval fields from before switching to Custom.
+        form.setIntervalsOn(true)
+        form.rows[0].secondaryStr = "not a split"
+        form.kind = .custom
+        form.customTitle = "  Bike 30 min "
+        form.customDetails = "Zone 2\nCadence 90\n"
+        form.notes = "felt good"
+        form.effort = 4
+        let made = form.makeWorkout()
+        let w = try #require(made)
+        #expect(w.kind == .custom)
+        #expect(w.title == "Bike 30 min")
+        #expect(w.details == "Zone 2\nCadence 90")
+        #expect(w.intervals.isEmpty)
+        #expect(w.notes == "felt good")
+        #expect(w.effort == 4)
+        #expect(w.totalDistance == 0)
+        #expect(form.customTitleError == nil)
+        #expect(form.rows.allSatisfy { $0.error == nil })
+    }
+
+    @Test("blank details save as nil")
+    func blankDetails() throws {
+        var form = WorkoutForm()
+        form.kind = .custom
+        form.customTitle = "Weights"
+        form.customDetails = "  "
+        let made = form.makeWorkout()
+        #expect(try #require(made).details == nil)
+    }
+
+    @Test("heart rate is still validated on a custom workout")
+    func heartRateValidated() {
+        var form = WorkoutForm()
+        form.kind = .custom
+        form.customTitle = "Run"
+        form.recordHeartRate = true
+        form.avgHRStr = "999"
+        #expect(form.makeWorkout() == nil)
+        #expect(form.heartRateError != nil)
+        #expect(form.customTitleError == nil)
+    }
+
+    @Test("Time and Distance workouts don't need a title")
+    func rowedNoTitle() throws {
+        var form = WorkoutForm()
+        form.kind = .distance
+        form.rows[0].primaryStr = "2000"
+        form.rows[0].secondaryStr = "1:50"
+        let made = form.makeWorkout()
+        let w = try #require(made)
+        #expect(w.title == nil)
+        #expect(w.details == nil)
+    }
+}

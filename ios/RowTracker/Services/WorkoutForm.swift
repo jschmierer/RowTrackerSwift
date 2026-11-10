@@ -6,6 +6,11 @@ import Foundation
 struct WorkoutForm {
     var date: Date = Date()
     var kind: WorkoutKind = .timed
+    /// Custom workouts only: what the rower calls it ("Bike 30 min").
+    var customTitle: String = ""
+    var customTitleError: String?
+    /// Custom workouts only: free-text description, any length.
+    var customDetails: String = ""
     /// Off: one box for a single piece. On: a list of intervals.
     private(set) var intervalsOn = false
     /// Only meaningful with intervals on. Off: every interval shares one
@@ -35,6 +40,7 @@ struct WorkoutForm {
     var notes: String = ""
 
     static let maxIntervals = 20
+    static let customTitleMaxLength = 60
     /// Accepted heart-rate range (beats per minute).
     static let heartRateRange = 30...230
     static let effortRange = 0...10
@@ -183,6 +189,9 @@ struct WorkoutForm {
     /// Validates the active rows, stores a per-row error message on each
     /// one that fails, and returns the workout when everything is valid.
     mutating func makeWorkout() -> Workout? {
+        if kind == .custom { return makeCustomWorkout() }
+        customTitleError = nil
+
         var intervals: [Interval] = []
         var hadError = false
 
@@ -220,29 +229,74 @@ struct WorkoutForm {
                 hadError = true
             }
         }
-        // Heart rate: ignored entirely while the toggle is off (anything
-        // typed is kept on the form but not saved).
-        var avgHR: Int?
-        var maxHR: Int?
-        heartRateError = nil
-        if recordHeartRate {
-            do {
-                (avgHR, maxHR) = try Self.parseHeartRate(avg: avgHRStr, max: maxHRStr)
-            } catch {
-                heartRateError = (error as? LocalizedError)?.errorDescription
-                    ?? error.localizedDescription
-                hadError = true
-            }
-        }
+        let heartRate = validatedHeartRate()
 
-        guard !hadError else { return nil }
+        guard !hadError, let heartRate else { return nil }
         return Workout(kind: kind,
                        date: RowingDate.startOfLocalDay(for: date),
                        notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
                        intervals: intervals,
-                       avgHR: avgHR,
-                       maxHR: maxHR,
+                       avgHR: heartRate.avg,
+                       maxHR: heartRate.max,
                        effort: effort)
+    }
+
+    /// A Custom workout is a title, optional details, and the fields every
+    /// workout has (date, heart rate, effort, notes). No intervals.
+    private mutating func makeCustomWorkout() -> Workout? {
+        sharedPrimaryError = nil
+        for i in rows.indices { rows[i].error = nil }
+
+        var title: String?
+        customTitleError = nil
+        do {
+            title = try Self.validateCustomTitle(customTitle)
+        } catch {
+            customTitleError = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
+        }
+        let heartRate = validatedHeartRate()
+
+        guard let title, let heartRate else { return nil }
+        let details = customDetails.trimmingCharacters(in: .whitespacesAndNewlines)
+        return Workout(kind: .custom,
+                       date: RowingDate.startOfLocalDay(for: date),
+                       notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
+                       intervals: [],
+                       avgHR: heartRate.avg,
+                       maxHR: heartRate.max,
+                       effort: effort,
+                       title: title,
+                       details: details.isEmpty ? nil : details)
+    }
+
+    /// Required, trimmed, and short enough to read as a heading.
+    static func validateCustomTitle(_ raw: String) throws -> String {
+        let title = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else {
+            throw IntervalFormRow.DeriveError.message(
+                "Give your custom workout a title, like \"Bike 30 min\" or \"Weights\".")
+        }
+        guard title.count <= customTitleMaxLength else {
+            throw IntervalFormRow.DeriveError.message(
+                "Keep the title to \(customTitleMaxLength) characters or fewer. Put the rest in Details.")
+        }
+        return title
+    }
+
+    /// Heart rate is ignored entirely while the toggle is off (anything
+    /// typed is kept on the form but not saved). Returns nil, and sets
+    /// `heartRateError`, when the values are invalid.
+    private mutating func validatedHeartRate() -> (avg: Int?, max: Int?)? {
+        heartRateError = nil
+        guard recordHeartRate else { return (nil, nil) }
+        do {
+            return try Self.parseHeartRate(avg: avgHRStr, max: maxHRStr)
+        } catch {
+            heartRateError = (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
+            return nil
+        }
     }
 
     /// Each field is optional (blank saves as nil, like stroke rate). A

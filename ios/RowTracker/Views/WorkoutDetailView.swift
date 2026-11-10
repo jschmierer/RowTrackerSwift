@@ -4,6 +4,8 @@ import SwiftUI
 /// from the "just saved" sheet in the Log flow.
 struct WorkoutDetailView: View {
     let workout: Workout
+    /// "Saved" in the sheet shown right after logging, "Workout" otherwise.
+    var navigationTitle = "Workout"
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -28,6 +30,27 @@ struct WorkoutDetailView: View {
                 }
             }
 
+            if workout.kind == .custom {
+                Section("Workout title") {
+                    Text(workout.title ?? WorkoutKind.custom.displayName)
+                        .accessibilityIdentifier("workoutTitle")
+                }
+                if let details = workout.details {
+                    Section("Details") {
+                        Text(details)
+                    }
+                }
+            } else {
+                rowedSections
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle(navigationTitle)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    @ViewBuilder
+    private var rowedSections: some View {
             Section("Totals") {
                 LabeledContent("Total distance",
                                value: Self.distanceString(workout.totalDistance))
@@ -44,10 +67,6 @@ struct WorkoutDetailView: View {
                     IntervalDetailRow(index: pair.offset, interval: pair.element)
                 }
             }
-        }
-        .listStyle(.insetGrouped)
-        .navigationTitle("Workout")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     static func distanceString(_ meters: Double) -> String {

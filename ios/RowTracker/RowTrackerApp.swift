@@ -5,7 +5,15 @@ struct RowTrackerApp: App {
     @State private var router = AppRouter()
     @State private var store: WorkoutStore = {
         do {
+            #if DEBUG
+            // UI tests launch with -uiTesting so they get a fresh, seeded
+            // in-memory database and never touch the simulator's real one.
+            let db = ProcessInfo.processInfo.arguments.contains("-uiTesting")
+                ? try AppDatabase.inMemory()
+                : try AppDatabase.onDisk()
+            #else
             let db = try AppDatabase.onDisk()
+            #endif
             let repo = WorkoutRepository(db)
             let store = WorkoutStore(repository: repo)
             #if DEBUG
