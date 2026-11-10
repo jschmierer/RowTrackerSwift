@@ -10,6 +10,8 @@ struct WorkoutDetailView: View {
 
     /// Split | Watts toggle; starts on Split.
     @State private var pace: PaceMode = .split
+    /// This workout's intervals start open; the comparison ones start closed.
+    @State private var intervalsExpanded = true
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -87,9 +89,13 @@ struct WorkoutDetailView: View {
             OverallRows(workout: workout, pace: pace, idPrefix: "overall")
         }
 
-        Section(workout.intervals.count == 1 ? "Interval" : "Intervals") {
-            ForEach(Array(workout.intervals.enumerated()), id: \.element.id) { pair in
-                IntervalDetailRow(index: pair.offset, interval: pair.element, pace: pace)
+        // A single piece is fully described by Overall.
+        if workout.intervals.count > 1 {
+            Section {
+                IntervalsDisclosure(intervals: workout.intervals,
+                                    pace: pace,
+                                    isExpanded: $intervalsExpanded,
+                                    idPrefix: "interval")
             }
         }
     }
@@ -116,6 +122,29 @@ struct OverallRows: View {
         LabeledContent("Average rate") {
             Text(DetailFormat.averageRate(workout.averageStrokeRate))
                 .accessibilityIdentifier("\(idPrefix)Rate")
+        }
+    }
+}
+
+/// "Intervals (N)", tap to show or hide every interval.
+struct IntervalsDisclosure: View {
+    let intervals: [Interval]
+    let pace: PaceMode
+    @Binding var isExpanded: Bool
+    let idPrefix: String
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            ForEach(Array(intervals.enumerated()), id: \.element.id) { pair in
+                IntervalDetailRow(index: pair.offset, interval: pair.element,
+                                  pace: pace, idPrefix: idPrefix)
+            }
+        } label: {
+            // Identifier on the label: on the group it would replace the
+            // rows' own identifiers.
+            Text("Intervals (\(intervals.count))")
+                .fontWeight(.medium)
+                .accessibilityIdentifier("\(idPrefix)sDisclosure")
         }
     }
 }

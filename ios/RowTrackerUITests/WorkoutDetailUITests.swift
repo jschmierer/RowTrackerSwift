@@ -13,6 +13,17 @@ final class WorkoutDetailUITests: RowTrackerUITestCase {
         XCTAssertTrue(app.navigationBars["Saved"].waitForExistence(timeout: 5))
     }
 
+    /// Opens the newest workout with this title from History (newest first).
+    func openFromHistory(_ title: String) {
+        app.tabBars.buttons["History"].tap()
+        XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 5))
+        let row = scrollTo(app.staticTexts.matching(identifier: title).firstMatch)
+        XCTAssertTrue(row.exists, "No \(title) in History")
+        row.tap()
+        XCTAssertTrue(app.navigationBars["Workout"].waitForExistence(timeout: 5))
+        XCTAssertEqual(element("workoutTitle").label, title)
+    }
+
     private func selectPace(_ name: String) {
         let button = scrollTo(app.segmentedControls["paceToggle"].buttons[name])
         XCTAssertTrue(button.exists, "Pace toggle missing")
@@ -39,14 +50,32 @@ final class WorkoutDetailUITests: RowTrackerUITestCase {
 
         selectPace("Split")
         XCTAssertEqual(overallPace(), "Average split, 2:00.0 /500m")
+
+        // One piece: no Intervals section.
+        XCTAssertFalse(element("intervalsDisclosure").exists)
+    }
+
+    func testIntervalsExpandAndFollowTheToggle() {
+        openFromHistory("3x8:00")
+
+        let first = scrollTo(element("intervalPace.1"))
+        XCTAssertTrue(first.exists, "Intervals start expanded")
+        XCTAssertTrue(first.label.hasSuffix("/500m"))
+        XCTAssertTrue(appears(element("intervalPace.3")))
+
+        selectPace("Watts")
+        XCTAssertTrue(scrollTo(element("intervalPace.1")).label.hasSuffix(" W"))
+
+        // Collapse, then expand again.
+        let disclosure = scrollTo(app.buttons["Intervals (3)"])
+        disclosure.tap()
+        XCTAssertTrue(element("intervalPace.1").waitForNonExistence(timeout: 3))
+        scrollTo(app.buttons["Intervals (3)"]).tap()
+        XCTAssertTrue(appears(element("intervalPace.1")))
     }
 
     func testSplitWattsToggleFromHistory() {
-        app.tabBars.buttons["History"].tap()
-        XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 5))
-        // Newest seeded workout: 3x8:00.
-        app.cells.firstMatch.tap()
-        XCTAssertTrue(app.navigationBars["Workout"].waitForExistence(timeout: 5))
+        openFromHistory("3x8:00")
 
         let split = overallPace()
         XCTAssertTrue(split.hasSuffix("/500m"), "Starts on Split: \(split)")
