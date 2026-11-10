@@ -47,4 +47,22 @@ final class LogCustomWorkoutUITests: RowTrackerUITestCase {
         XCTAssertTrue(app.navigationBars["Dashboard"].waitForExistence(timeout: 5))
         XCTAssertTrue(appears(app.staticTexts["Bike 30 min"]))
     }
+
+    func testShareWorkoutSavesThenOpensShareSheet() {
+        selectWorkoutType("Custom")
+        type("Weights", into: "customTitleField")
+        tapButton("shareWorkoutButton")
+
+        // The iOS share sheet opens first...
+        let sheet = app.otherElements["ActivityListView"]
+        XCTAssertTrue(sheet.waitForExistence(timeout: 5), "Share sheet should open")
+        let close = sheet.buttons["Close"].exists ? sheet.buttons["Close"] : app.buttons["Close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 3))
+        close.tap()
+
+        // ...then the saved workout, with its own Share button.
+        XCTAssertTrue(app.navigationBars["Saved"].waitForExistence(timeout: 5))
+        XCTAssertEqual(element("workoutTitle").label, "Weights")
+        XCTAssertTrue(element("shareButton").exists)
+    }
 }

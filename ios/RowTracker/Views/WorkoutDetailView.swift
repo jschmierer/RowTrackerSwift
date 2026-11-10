@@ -50,6 +50,16 @@ struct WorkoutDetailView: View {
         .listStyle(.insetGrouped)
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                ShareLink(item: WorkoutShareText.make(for: workout),
+                          subject: Text(WorkoutTitle.make(for: workout)),
+                          preview: SharePreview(WorkoutTitle.make(for: workout))) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+                .accessibilityIdentifier("shareButton")
+            }
+        }
     }
 
     @ViewBuilder

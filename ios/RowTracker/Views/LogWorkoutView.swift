@@ -7,6 +7,10 @@ struct LogWorkoutView: View {
     @State private var form = WorkoutForm()
     @State private var saveError: String?
     @State private var justSaved: Workout?
+    /// Set by "Share workout": the share sheet opens first, and the saved
+    /// workout's detail sheet follows when it closes.
+    @State private var sharing: ShareText?
+    @State private var savedWhileSharing: Workout?
     @FocusState private var focusedField: FocusedField?
 
     enum FocusedField: Hashable {
@@ -116,6 +120,16 @@ struct LogWorkoutView: View {
                             .foregroundStyle(.red)
                     }
                 }
+
+                Section {
+                    Button(action: saveAndShare) {
+                        Label("Share workout", systemImage: "square.and.arrow.up")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .accessibilityIdentifier("shareWorkoutButton")
+                } footer: {
+                    Text("Saves the workout, then opens the share sheet.")
+                }
             }
             .navigationTitle("Log Workout")
             // Keyboard dismissal: swipe the form down, or the Done button
@@ -132,6 +146,14 @@ struct LogWorkoutView: View {
                     Button("Done") { focusedField = nil }
                         .fontWeight(.semibold)
                 }
+            }
+            .sheet(item: $sharing, onDismiss: {
+                justSaved = savedWhileSharing
+                savedWhileSharing = nil
+            }) { item in
+                ActivityView(text: item.text) { sharing = nil }
+                    .presentationDetents([.medium, .large])
+                    .ignoresSafeArea()
             }
             .sheet(item: $justSaved) { saved in
                 NavigationStack {
@@ -384,19 +406,34 @@ struct LogWorkoutView: View {
     }
 
     private func save() {
+        guard let workout = validateAndStore() else { return }
+        // Show the fresh workout so the rower can confirm it was recorded
+        // correctly. The form is cleared by `finishSave()` when they tap
+        // Done, which also switches to the Dashboard tab.
+        justSaved = workout
+    }
+
+    /// "Share workout": save exactly like Save, open the share sheet with
+    /// the summary, then show the saved workout when the sheet closes.
+    private func saveAndShare() {
+        guard let workout = validateAndStore() else { return }
+        savedWhileSharing = workout
+        sharing = ShareText(text: WorkoutShareText.make(for: workout))
+    }
+
+    private func validateAndStore() -> Workout? {
+        focusedField = nil
         saveError = nil
         guard let workout = form.makeWorkout() else {
             saveError = "Fix the highlighted fields and try again."
-            return
+            return nil
         }
         do {
             try store.save(workout)
-            // Show the fresh workout so the rower can confirm it was recorded
-            // correctly. The form is cleared by `finishSave()` when they tap
-            // Done, which also switches to the Dashboard tab.
-            justSaved = workout
+            return workout
         } catch {
             saveError = "Couldn't save: \(error.localizedDescription)"
+            return nil
         }
     }
 }
