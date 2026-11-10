@@ -114,6 +114,11 @@ struct Workout: Identifiable, Codable, Hashable {
         intervals.compactMap(\.restSec).reduce(0, +)
     }
 
+    /// Duration-weighted average stroke rate over intervals with a rate.
+    var averageStrokeRate: Double? {
+        WorkoutStats.averageStrokeRate(intervals)
+    }
+
     /// Average split per 500 m across scored intervals. Nil when there is no
     /// scored distance.
     var averageSplit: TimeInterval? {

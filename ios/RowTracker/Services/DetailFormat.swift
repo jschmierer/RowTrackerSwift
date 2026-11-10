@@ -48,4 +48,13 @@ enum DetailFormat {
     static func strokeRate(_ spm: Int?) -> String {
         spm.map { "\($0) spm" } ?? missing
     }
+
+    /// "28 spm", or "28.5 spm" when the average isn't whole.
+    static func averageRate(_ spm: Double?) -> String {
+        guard let spm else { return missing }
+        let tenths = (spm * 10).rounded() / 10
+        return tenths == tenths.rounded()
+            ? "\(Int(tenths)) spm"
+            : String(format: "%.1f spm", tenths)
+    }
 }

@@ -26,6 +26,8 @@ struct WorkoutShareTextTests {
         #expect(text.contains("Total distance: 1500 m"))
         #expect(text.contains("Average split: 1:40.0 /500m"))
         #expect(text.contains("Average watts: 350 W"))
+        // (30 x 100 + 29 x 102) / 202, weighted by duration.
+        #expect(text.contains("Average rate: 29.5 spm"))
         #expect(text.contains("Average HR: 160 bpm"))
         #expect(text.contains("Max HR: 182 bpm"))
         #expect(text.contains("Effort: 8 / 10"))

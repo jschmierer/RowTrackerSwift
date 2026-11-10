@@ -28,6 +28,9 @@ enum WorkoutShareText {
             lines.append("Total distance: \(DetailFormat.distance(workout.totalDistance))")
             lines.append("Average split: \(DetailFormat.split(workout.averageSplit))")
             lines.append("Average watts: \(DetailFormat.watts(workout.averageSplit.flatMap(RowingMath.watts(fromSplit:))))")
+            if let rate = workout.averageStrokeRate {
+                lines.append("Average rate: \(DetailFormat.averageRate(rate))")
+            }
         }
 
         if workout.avgHR != nil || workout.maxHR != nil {

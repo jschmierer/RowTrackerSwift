@@ -83,19 +83,39 @@ struct WorkoutDetailView: View {
             .accessibilityIdentifier("paceToggle")
         }
 
-        Section("Totals") {
-            LabeledContent("Total distance", value: DetailFormat.distance(workout.totalDistance))
-            LabeledContent("Total time", value: DetailFormat.time(workout.totalDuration))
-            LabeledContent(pace.averageLabel) {
-                Text(pace.format(split: workout.averageSplit))
-                    .accessibilityIdentifier("overallPace")
-            }
+        Section("Overall") {
+            OverallRows(workout: workout, pace: pace, idPrefix: "overall")
         }
 
         Section(workout.intervals.count == 1 ? "Interval" : "Intervals") {
             ForEach(Array(workout.intervals.enumerated()), id: \.element.id) { pair in
                 IntervalDetailRow(index: pair.offset, interval: pair.element, pace: pace)
             }
+        }
+    }
+}
+
+/// Overall stats for a workout: total time, total distance, average split
+/// (or watts), average rate. Rest is never included.
+///
+/// Average split = total time / total distance x 500. Average watts come
+/// from that average split (not an average of each interval's watts).
+/// Average rate is weighted by interval duration.
+struct OverallRows: View {
+    let workout: Workout
+    let pace: PaceMode
+    let idPrefix: String
+
+    var body: some View {
+        LabeledContent("Total time", value: DetailFormat.time(workout.totalDuration))
+        LabeledContent("Total distance", value: DetailFormat.distance(workout.totalDistance))
+        LabeledContent(pace.averageLabel) {
+            Text(pace.format(split: workout.averageSplit))
+                .accessibilityIdentifier("\(idPrefix)Pace")
+        }
+        LabeledContent("Average rate") {
+            Text(DetailFormat.averageRate(workout.averageStrokeRate))
+                .accessibilityIdentifier("\(idPrefix)Rate")
         }
     }
 }

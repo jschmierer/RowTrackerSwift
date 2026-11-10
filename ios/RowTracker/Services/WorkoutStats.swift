@@ -46,6 +46,23 @@ enum WorkoutStats {
     }
 }
 
+extension WorkoutStats {
+    /// Stroke rate averaged over the intervals that have one, weighted by
+    /// each interval's duration, so a 10-minute piece at 20 counts ten
+    /// times as much as a 1-minute piece at 30. Intervals without a rate
+    /// are left out. Nil when no interval has a rate.
+    static func averageStrokeRate(_ intervals: [Interval]) -> Double? {
+        var weighted = 0.0
+        var seconds = 0.0
+        for interval in intervals {
+            guard let rate = interval.strokeRate, interval.durationSec > 0 else { continue }
+            weighted += Double(rate) * interval.durationSec
+            seconds += interval.durationSec
+        }
+        return seconds > 0 ? weighted / seconds : nil
+    }
+}
+
 extension WorkoutKind {
     /// Name shown in the UI ("Time", "Distance", "Custom").
     var displayName: String {
