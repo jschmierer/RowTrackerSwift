@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// The read-only workout detail screen. Reached from the History list and
-/// from the "just saved" sheet in the Log flow.
+/// The read-only workout detail ("Workout Finished") screen. Reached from
+/// History, the Dashboard, and the "Saved" sheet after logging. Layout
+/// follows docs/mockups/workout-finished-page.png, top to bottom.
 struct WorkoutDetailView: View {
     let workout: Workout
     /// "Saved" in the sheet shown right after logging, "Workout" otherwise.
@@ -23,27 +24,31 @@ struct WorkoutDetailView: View {
                     .accessibilityIdentifier("workoutTitle")
             }
 
-            Section("Workout") {
+            // Header: always these four, a dash when missing.
+            Section {
                 LabeledContent("Date", value: Self.dateFormatter.string(from: workout.date))
-                LabeledContent("Type", value: workout.kind.displayName)
                 LabeledContent("Average HR", value: DetailFormat.heartRate(workout.avgHR))
+                    .accessibilityIdentifier("headerAvgHR")
                 LabeledContent("Max HR", value: DetailFormat.heartRate(workout.maxHR))
+                    .accessibilityIdentifier("headerMaxHR")
                 LabeledContent("Effort", value: DetailFormat.effort(workout.effort))
-                if !workout.notes.isEmpty {
-                    LabeledContent("Notes") {
-                        Text(workout.notes)
-                            .multilineTextAlignment(.trailing)
-                    }
+                    .accessibilityIdentifier("headerEffort")
+            }
+
+            // Not in the mockup, but the rower typed them: keep them
+            // visible just below the header.
+            if workout.kind == .custom, let details = workout.details {
+                Section("Details") {
+                    Text(details)
+                }
+            }
+            if !workout.notes.isEmpty {
+                Section("Notes") {
+                    Text(workout.notes)
                 }
             }
 
-            if workout.kind == .custom {
-                if let details = workout.details {
-                    Section("Details") {
-                        Text(details)
-                    }
-                }
-            } else {
+            if workout.kind != .custom {
                 rowedSections
             }
         }
