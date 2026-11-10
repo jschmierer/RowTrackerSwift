@@ -83,4 +83,33 @@ final class WorkoutDetailUITests: RowTrackerUITestCase {
         selectPace("Watts")
         XCTAssertTrue(overallPace().hasSuffix(" W"))
     }
+
+    // MARK: - Comparison
+
+    func testComparisonShowsPreviousBestAndGraph() {
+        // Seeded 2000m pieces: 8:12, 8:00, 7:55, then 7:48 (newest).
+        openFromHistory("2000m")
+
+        // Previous (7:55) is also the best earlier one: both are shown.
+        XCTAssertTrue(appears(element("previousHeader")))
+        XCTAssertEqual(scrollTo(element("previousOverallPace")).label,
+                       "Average split, 1:58.8 /500m")
+        XCTAssertTrue(appears(element("bestHeader")))
+        XCTAssertEqual(scrollTo(element("bestOverallPace")).label,
+                       "Average split, 1:58.8 /500m")
+        XCTAssertTrue(appears(element("comparisonChart")))
+
+        // The toggle switches the comparison values too.
+        selectPace("Watts")
+        XCTAssertTrue(scrollTo(element("previousOverallPace")).label.hasSuffix(" W"))
+        XCTAssertTrue(scrollTo(element("bestOverallPace")).label.hasSuffix(" W"))
+    }
+
+    func testNoComparisonWithoutAnEarlierMatch() {
+        // The only 3x8:00 in the seed data.
+        openFromHistory("3x8:00")
+        for _ in 0..<4 { app.swipeUp(velocity: .fast) }
+        XCTAssertFalse(element("previousHeader").exists)
+        XCTAssertFalse(element("comparisonChart").exists)
+    }
 }

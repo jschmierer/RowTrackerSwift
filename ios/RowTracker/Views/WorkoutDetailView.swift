@@ -1,9 +1,11 @@
 import SwiftUI
+import Charts
 
 /// The read-only workout detail ("Workout Finished") screen. Reached from
 /// History, the Dashboard, and the "Saved" sheet after logging. Layout
 /// follows docs/mockups/workout-finished-page.png, top to bottom.
 struct WorkoutDetailView: View {
+    @Environment(WorkoutStore.self) private var store
     let workout: Workout
     /// "Saved" in the sheet shown right after logging, "Workout" otherwise.
     var navigationTitle = "Workout"
@@ -12,6 +14,8 @@ struct WorkoutDetailView: View {
     @State private var pace: PaceMode = .split
     /// This workout's intervals start open; the comparison ones start closed.
     @State private var intervalsExpanded = true
+    @State private var previousExpanded = false
+    @State private var bestExpanded = false
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -96,6 +100,109 @@ struct WorkoutDetailView: View {
                                     pace: pace,
                                     isExpanded: $intervalsExpanded,
                                     idPrefix: "interval")
+            }
+        }
+
+        if let comparison = WorkoutComparison.make(for: workout, among: store.workouts) {
+            comparisonSections(comparison)
+        }
+    }
+
+    // MARK: - Comparison
+
+    @ViewBuilder
+    private func comparisonSections(_ c: WorkoutComparison) -> some View {
+        comparedWorkout(c.previous, heading: "Previous", idPrefix: "previous",
+                        expanded: $previousExpanded)
+        if let best = c.best {
+            comparedWorkout(best, heading: "Best", idPrefix: "best",
+                            expanded: $bestExpanded)
+        }
+        Section {
+            ComparisonChart(history: c.history, current: workout, pace: pace)
+                .frame(height: 220)
+                .padding(.vertical, 8)
+                .accessibilityIdentifier("comparisonChart")
+        } header: {
+            Text("Every \(WorkoutTitle.make(for: workout))")
+        } footer: {
+            Text(pace == .split
+                 ? "Average split of each one. Up is faster."
+                 : "Average watts of each one. Up is faster.")
+        }
+    }
+
+    @ViewBuilder
+    private func comparedWorkout(_ other: Workout, heading: String, idPrefix: String,
+                                 expanded: Binding<Bool>) -> some View {
+        Section {
+            OverallRows(workout: other, pace: pace, idPrefix: "\(idPrefix)Overall")
+            if other.intervals.count > 1 {
+                IntervalsDisclosure(intervals: other.intervals, pace: pace,
+                                    isExpanded: expanded,
+                                    idPrefix: "\(idPrefix)Interval")
+            }
+        } header: {
+            // e.g. "Comparison: Previous · Nov 2, 2026"
+            Text("Comparison: \(heading) · \(Self.shortDate.string(from: other.date))")
+                .accessibilityIdentifier("\(idPrefix)Header")
+        }
+    }
+
+    private static let shortDate: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .none
+        return f
+    }()
+}
+
+/// Every matching workout's average split (or watts) over time. Faster is
+/// always higher: the split axis is flipped, watts aren't. This workout's
+/// point is highlighted.
+private struct ComparisonChart: View {
+    let history: [Workout]
+    let current: Workout
+    let pace: PaceMode
+
+    private struct Point: Identifiable {
+        let id: UUID
+        let date: Date
+        let value: Double
+        let isCurrent: Bool
+    }
+
+    private var points: [Point] {
+        history.compactMap { w in
+            guard let split = w.averageSplit, let value = pace.value(split: split) else { return nil }
+            return Point(id: w.id, date: w.date, value: value, isCurrent: w.id == current.id)
+        }
+    }
+
+    var body: some View {
+        Chart(points) { p in
+            LineMark(x: .value("Date", p.date), y: .value(pace.label, p.value))
+                .interpolationMethod(.monotone)
+            PointMark(x: .value("Date", p.date), y: .value(pace.label, p.value))
+                .foregroundStyle(p.isCurrent ? Color.orange : Color.accentColor)
+                .symbolSize(p.isCurrent ? 120 : 40)
+        }
+        .chartYScale(domain: .automatic(includesZero: false, reversed: pace == .split))
+        .chartYAxis {
+            AxisMarks(position: .leading) { value in
+                AxisGridLine()
+                AxisValueLabel {
+                    if let v = value.as(Double.self) {
+                        Text(pace == .split ? DetailFormat.time(v) : "\(Int(v.rounded())) W")
+                            .font(.caption2)
+                    }
+                }
+            }
+        }
+        .chartXAxis {
+            AxisMarks(values: .automatic(desiredCount: 4)) { _ in
+                AxisGridLine()
+                AxisValueLabel(format: .dateTime.month(.abbreviated).day())
             }
         }
     }
