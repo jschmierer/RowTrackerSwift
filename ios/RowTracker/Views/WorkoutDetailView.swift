@@ -16,6 +16,13 @@ struct WorkoutDetailView: View {
 
     var body: some View {
         List {
+            Section {
+                Text(WorkoutTitle.make(for: workout))
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .accessibilityIdentifier("workoutTitle")
+            }
+
             Section("Workout") {
                 LabeledContent("Date", value: Self.dateFormatter.string(from: workout.date))
                 LabeledContent("Type", value: workout.kind.displayName)
@@ -31,10 +38,6 @@ struct WorkoutDetailView: View {
             }
 
             if workout.kind == .custom {
-                Section("Workout title") {
-                    Text(workout.title ?? WorkoutKind.custom.displayName)
-                        .accessibilityIdentifier("workoutTitle")
-                }
                 if let details = workout.details {
                     Section("Details") {
                         Text(details)

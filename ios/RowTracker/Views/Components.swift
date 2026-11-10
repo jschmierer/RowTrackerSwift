@@ -60,7 +60,7 @@ struct WorkoutRow: View {
             }
             if workout.kind == .custom {
                 // No meters or split: show what the rower called it.
-                Text(workout.title ?? WorkoutKind.custom.displayName)
+                Text(WorkoutTitle.make(for: workout))
                     .font(.footnote)
                     .fontWeight(.medium)
                 if let details = workout.details {
@@ -71,6 +71,8 @@ struct WorkoutRow: View {
                 }
             } else {
                 HStack(spacing: 12) {
+                    Text(WorkoutTitle.make(for: workout))
+                        .fontWeight(.medium)
                     Text("\(Int(workout.totalDistance)) m")
                     Text(RowingMath.formatTime(workout.totalDuration))
                     if let avg = workout.averageSplit {
